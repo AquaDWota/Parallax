@@ -35,14 +35,17 @@ VEXCEL_API_KEY = os.environ.get("VEXCEL_API_KEY", "")
 
 # Usage-index parameters (see "Car counting and the usage index" in the plan)
 PEER_RADIUS_KM = 2.0
-BASELINE_YEARS = (2018, 2019)
+# Synthetic data has 2 captures/yr from 2018. Real Vexcel data has ~1/yr from 2016-17,
+# so real mode uses a wider pre-COVID baseline and wider predictor windows.
+REAL = DATA_MODE == "real"
+BASELINE_YEARS = (2016, 2019) if REAL else (2018, 2019)
 DROP_THRESHOLD = 85.0          # index below this counts as a drop
 DROP_MIN_CAPTURES = 2          # ... only if it persists this many captures
 SQM_PER_STALL = 30.0
 
 # Correlation study
-PREDICTOR_WINDOW_MONTHS = 12
-LEAD_TIMES_MONTHS = (0, 6, 12, 18)
+PREDICTOR_WINDOW_MONTHS = 18 if REAL else 12
+LEAD_TIMES_MONTHS = (0, 12, 24) if REAL else (0, 6, 12, 18)
 OOS_TRAIN_YEARS = (2019, 2022)
 OOS_TEST_YEARS = (2023, 2026)
 
