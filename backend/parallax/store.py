@@ -82,9 +82,22 @@ def build(mode: str = config.DATA_MODE) -> Store:
     return Store(buildings, captures, car_counts, leases, usage, tenancies)
 
 
+def _inputs_newer_than_db() -> bool:
+    """Real mode: rebuild when any input CSV changed after the database was built (e.g. a new batch run)."""
+    if config.DATA_MODE != "real" or not config.DB_PATH.exists():
+        return False
+    db_time = config.DB_PATH.stat().st_mtime
+    names = ["car_counts.csv", "captures.csv", "vexcel_buildings.csv", "costar_properties.csv",
+             "costar_leases.csv", "costar_occupancy.csv"]
+    return any((config.DATA_DIR / "real" / n).exists() and (config.DATA_DIR / "real" / n).stat().st_mtime > db_time
+               for n in names)
+
+
 @lru_cache(maxsize=1)
 def get_store() -> Store:
-    if not config.DB_PATH.exists():
+    if not config.DB_PATH.exists() or _inputs_newer_than_db():
+        if config.DB_PATH.exists():
+            print("data files changed since the last build - rebuilding the database")
         return build()
     con = duckdb.connect(str(config.DB_PATH), read_only=True)
     try:
