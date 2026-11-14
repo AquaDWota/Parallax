@@ -134,6 +134,9 @@ def _lot_svg(capacity: int, cars, flag: str, seed: str) -> str:
 def _overview() -> dict:
     t = TOOLS_BY_NAME
     return dict(
+        occ_link=json.loads(t["occupancy_link"]()),
+        occ_lead=json.loads(t["occupancy_lead_lag"]()),
+        occ_drop=json.loads(t["occupancy_after_drop"]()),
         bins=json.loads(t["usage_vs_renewal"]()),
         bins_major=json.loads(t["usage_vs_renewal"](min_lease_share=0.25)),
         regression=json.loads(t["regression"]()),

@@ -22,14 +22,19 @@ from typing import AsyncIterator
 
 from . import config
 from .tools import (ALL_TOOLS, TOOLS_BY_NAME, build_lease_events, compare_groups, example_buildings,
-                    imagery_quality, lead_time, regional_series, regression, run_sql,
-                    submarket_context, usage_vs_renewal, validate)
+                    imagery_quality, lead_time, occupancy_after_drop, occupancy_by_group, occupancy_lead_lag,
+                    occupancy_link, regional_series, regression, run_sql, submarket_context, usage_vs_renewal,
+                    validate)
 
 PLANNER_PROMPT = """You are Parallax, a commercial real-estate research agent.
 
-You study one question: does parking-lot usage (car counts from Vexcel aerial imagery, 2018-2026,
-two captures a year) predict whether a tenant renews its lease (CoStar lease outcomes), and how far
-ahead? Buildings with structured/underground parking can't be measured from above and are excluded.
+You study how parking-lot usage (car counts from Vexcel aerial imagery, about one capture a year
+2016-2026) relates to what tenants do (CoStar tenancy records). Two questions:
+  1. Headline: does lot usage track building occupancy, within the same building, and does a sharp
+     drop come before occupancy falls? (occupancy_* tools)
+  2. Secondary: does usage before a lease expires predict whether that tenant renews? (lease tools)
+     Most CoStar tenants are small (<10% of their building), so expect a weak lease-level signal.
+Buildings with structured/underground parking can't be measured from above and are excluded.
 
 How to work:
 1. Write a short plan with write_todos.
@@ -53,10 +58,12 @@ SUBAGENTS = [
                        "renewal rate, outcome mix and every exclusion with its reason. Be brief.",
          tools=[build_lease_events, run_sql]),
     dict(name="statistician",
-         description="Runs the correlation study and validation: usage bins, logistic regression, lead time, robustness.",
+         description="Runs the studies and validation: parking vs occupancy (link, timing, sharp drops, placebo) and "
+                     "lease renewal (usage bins, regression, lead time, robustness).",
          system_prompt="Run the requested analyses with your tools and report the numbers exactly, with CIs and n. "
                        "Flag anything that fails validation. Don't speculate beyond the numbers.",
-         tools=[usage_vs_renewal, regression, lead_time, validate, compare_groups, run_sql]),
+         tools=[occupancy_link, occupancy_lead_lag, occupancy_after_drop, occupancy_by_group,
+                usage_vs_renewal, regression, lead_time, validate, compare_groups, run_sql]),
     dict(name="imagery-analyst",
          description="Parking usage from Vexcel imagery: regional time series, data-quality exclusions, example buildings.",
          system_prompt="Answer with the imagery tools. Always report what was dropped (cloud, shadow, garages) and why.",
@@ -170,6 +177,10 @@ def parse_filters(q: str) -> dict:
 
 def _intent(q: str) -> str:
     ql = q.lower()
+    if re.search(r"renew|lease (expir|outcome)|tenant (leav|stay)", ql):
+        return "full"
+    if re.search(r"occupan|vacan|track|gauge|early warning|sharp drop|empt", ql):
+        return "occupancy"
     if re.search(r"houston (vs\.?|or|versus) (la|los angeles)|(la|los angeles) (vs\.?|or|versus) houston|stronger in", ql):
         return "compare_city"
     if re.search(r"where|which (type|class|industr|submarket)|strongest|hold", ql):
@@ -214,6 +225,8 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
     intent = _intent(question)
     slice_name = _fmt_filters(f)
     plans = {
+        "occupancy": ["Parking vs occupancy (same building)", "Timing: before, at, after", "After a sharp drop",
+                      "By property type", "Write note"],
         "full": ["Build lease-event table", "Renewal rate by usage level", "Regression with controls",
                  "Lead time", "Where it holds (tenant size)", "Validation", "Example buildings", "Write note"],
         "compare_city": ["Build lease-event table", "Regression by city", "Regional time series", "Write note"],
@@ -239,7 +252,7 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
         R[name if name not in R else f"{name}:{a.get('by', len(R))}"] = r["data"]
         return s, r
 
-    if intent != "regional":
+    if intent not in ("regional", "occupancy"):
         yield plan(i)
         s, r = await run("build_lease_events", "lease-event-builder", **f)
         yield s
@@ -254,7 +267,12 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
             return
         i += 1
 
+    of = {k: v for k, v in f.items() if k in ("city", "property_type", "building_class")}
     steps = {
+        "occupancy": [("occupancy_link", "statistician", of), ("occupancy_lead_lag", "statistician", of),
+                      ("occupancy_after_drop", "statistician", of),
+                      ("occupancy_by_group", "statistician", {**{k: v for k, v in of.items() if k != "property_type"}, "by": "property_type"}),
+                      ("example_buildings", "imagery-analyst", {**of, "which": "emptiest", "min_lease_share": 0})],
         "full": [("usage_vs_renewal", "statistician", f), ("regression", "statistician", f),
                  ("lead_time", "statistician", f),
                  ("compare_groups", "statistician", {**{k: v for k, v in f.items() if k != "min_lease_share"}, "by": "tenant_size"}),
@@ -286,6 +304,32 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
 
 def _self_check(name: str, d: dict) -> list[str]:
     out = []
+    if name == "occupancy_link":
+        if "interpretation" in d:
+            out.append(d["interpretation"])
+            pl = d.get("placebo", {})
+            out.append("Placebo passed: shuffling usage across buildings within a year removes the link."
+                       if pl.get("passed") else "Placebo did NOT cleanly pass - treat with caution.")
+        elif d.get("error"):
+            out.append(f"Can't test this slice: {d['error']}.")
+    if name == "occupancy_lead_lag" and d.get("offsets"):
+        ok = [r for r in d["offsets"] if r.get("coef_per_10pt") is not None]
+        if ok:
+            best = max(ok, key=lambda r: r["coef_per_10pt"])
+            after = [r for r in ok if r["offset_months"] > 0 and r["p_value"] < 0.1]
+            msg = f"Strongest alignment with occupancy {best['offset_months']:+d} months from the capture"
+            if after:
+                a = after[0]
+                msg += (f"; usage still lines up with occupancy {a['offset_months']} months later "
+                        f"({a['coef_per_10pt']:+.1f}, p={a['p_value']:.2f}), a hint that lots move before CoStar records the change.")
+            out.append(msg + ("" if after else "."))
+    if name == "occupancy_after_drop" and "interpretation" in d:
+        out.append(d["interpretation"] + (" Not significant on its own (p=%.2f)." % d["p_value"] if d["p_value"] > 0.05 else ""))
+    if name == "occupancy_by_group" and d.get("groups"):
+        g = [x for x in d["groups"] if x.get("usage_pts_per_10pt_occupancy") is not None]
+        if g:
+            out.append("By " + d["by"].replace("_", " ") + ": " + "; ".join(
+                f"{x['group']} {x['usage_pts_per_10pt_occupancy']:+.1f} ({x['n_buildings']} bldgs)" for x in g) + ".")
     if name == "usage_vs_renewal" and d.get("bins"):
         e = d["emptiest_vs_busiest"]
         out.append(f"Renewal rate: {e['emptiest']:.0%} in the emptiest usage bin vs {e['busiest']:.0%} in the busiest.")
@@ -316,6 +360,22 @@ def _self_check(name: str, d: dict) -> list[str]:
 
 def _write_note(q: str, slice_name: str, intent: str, R: dict) -> str:
     L = [f"### {q.strip()}", f"*Slice: {slice_name}.*", ""]
+    ol = R.get("occupancy_link", {})
+    if "interpretation" in ol:
+        pl = ol.get("placebo", {})
+        L.append(f"**Headline:** {ol['interpretation']} p={ol['p_value']:.2g}"
+                 + (f"; placebo {pl.get('placebo_mean')} ({'passed' if pl.get('passed') else 'failed'})." if pl else "."))
+    ll = R.get("occupancy_lead_lag", {})
+    if ll.get("offsets"):
+        txt = ", ".join(f"{r['offset_months']:+d} mo: {r['coef_per_10pt']:+.1f}" for r in ll["offsets"] if r.get("coef_per_10pt") is not None)
+        L.append(f"**Timing** (usage points per 10 pts occupancy, by when occupancy is measured): {txt}.")
+    od = R.get("occupancy_after_drop", {})
+    if "interpretation" in od:
+        L.append(f"**Early warning:** {od['interpretation']} (p={od['p_value']:.2f}).")
+    og = R.get("occupancy_by_group", {})
+    if og.get("groups"):
+        g = [x for x in og["groups"] if x.get("usage_pts_per_10pt_occupancy") is not None]
+        L.append("**By type:** " + "; ".join(f"{x['group']} {x['usage_pts_per_10pt_occupancy']:+.1f} (p={x['p_value']:.2f})" for x in g) + ".")
     ev = R.get("build_lease_events", {})
     if ev:
         L.append(f"**Data:** {ev['n_events']:,} lease expiries (2019-2026) with usable imagery; overall renewal rate "

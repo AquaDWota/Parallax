@@ -2,9 +2,13 @@
 import { useState } from "react";
 import type { Bin } from "@/lib/api";
 import { pct } from "@/lib/api";
-import { BinsChart, LeadChart, RegionalChart } from "./charts";
+import { BinsChart, LeadChart, OccBinsChart, OffsetChart, RegionalChart } from "./charts";
 
 export type Results = {
+  occLink?: any;
+  occLead?: any;
+  occDrop?: any;
+  occGroups?: any;
   bins?: any;
   regression?: any;
   lead?: any;
@@ -41,9 +45,65 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
     <>
       <div className="col-head"><h2>Results</h2></div>
       <div className="col-body">
+        {r.occLink?.bins?.length > 0 && (
+          <section className="result">
+            <h3>Parking tracks occupancy</h3>
+            <p className="sub">{sliceLabel(r.occLink.filters)}. {r.occLink.n_buildings} buildings, {r.occLink.n.toLocaleString()} captures.
+              Each bar compares a building with itself: lot usage vs its usual level, when CoStar shows it fuller or emptier than usual.</p>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              <span className="headline-num">{r.occLink.usage_pts_per_10pt_occupancy > 0 ? "+" : ""}{r.occLink.usage_pts_per_10pt_occupancy.toFixed(1)}</span> usage
+              points for every 10 points of occupancy, in the same building.
+            </p>
+            <OccBinsChart bins={r.occLink.bins} />
+            <p className="sub" style={{ marginTop: "0.5rem" }}>
+              95% CI {r.occLink.ci_low.toFixed(1)} to {r.occLink.ci_high.toFixed(1)}, p={r.occLink.p_value < 0.001 ? "<0.001" : r.occLink.p_value.toFixed(3)}.
+              {r.occLink.placebo ? ` Placebo (usage shuffled across buildings): ${r.occLink.placebo.placebo_mean}, ${r.occLink.placebo.passed ? "passed" : "failed"}.` : ""}
+            </p>
+          </section>
+        )}
+
+        {r.occDrop?.n_drops && (
+          <section className="result">
+            <h3>After a lot empties sharply</h3>
+            <p className="sub">Occupancy change by the next capture, for lots that fell more than {Math.abs(r.occDrop.threshold)} points vs all others.</p>
+            <table className="groups">
+              <tbody>
+                <tr><td>Lot fell sharply ({r.occDrop.n_drops})</td><td className="num">{r.occDrop.occ_change_after_drop > 0 ? "+" : ""}{r.occDrop.occ_change_after_drop} pts</td></tr>
+                <tr><td>All other captures ({r.occDrop.n_rest})</td><td className="num">{r.occDrop.occ_change_otherwise > 0 ? "+" : ""}{r.occDrop.occ_change_otherwise} pts</td></tr>
+                <tr><td>Difference</td><td className="num">{r.occDrop.difference} pts (p={r.occDrop.p_value.toFixed(2)})</td></tr>
+              </tbody>
+            </table>
+          </section>
+        )}
+
+        {r.occLead?.offsets && (
+          <section className="result">
+            <h3>When parking and occupancy line up</h3>
+            <p className="sub">Usage points per 10 points of occupancy, with occupancy measured before, at and after the capture. Filled dots: p &lt; 0.1.</p>
+            <OffsetChart offsets={r.occLead.offsets} />
+          </section>
+        )}
+
+        {r.occGroups?.groups && (
+          <section className="result">
+            <h3>Where it holds: by {r.occGroups.by.replace("_", " ")}</h3>
+            <table className="groups">
+              <tbody>
+                {r.occGroups.groups.filter((x: any) => x.usage_pts_per_10pt_occupancy != null).map((x: any) => (
+                  <tr key={x.group}>
+                    <td>{x.group}</td>
+                    <td className="num">{x.usage_pts_per_10pt_occupancy > 0 ? "+" : ""}{x.usage_pts_per_10pt_occupancy}{x.p_value >= 0.1 ? " (n.s.)" : ""}</td>
+                    <td className="num">{x.n_buildings} bldgs</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+
         {bins?.bins && (
           <section className="result">
-            <h3>Renewal rate by parking usage</h3>
+            <h3>{r.occLink ? "Secondary: renewal rate by parking usage" : "Renewal rate by parking usage"}</h3>
             <p className="sub">{sliceLabel(bins.filters)}. {bins.n.toLocaleString()} lease expiries, 2019-2026. Click a bar for example buildings.</p>
             {e && (
               <p style={{ margin: "0 0 0.5rem" }}>

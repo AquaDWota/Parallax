@@ -77,3 +77,12 @@ def test_scripted_agent_streams_events(monkeypatch):
     kinds = {e["type"] for e in evs}
     assert {"plan", "step", "result", "final"} <= kinds
     json.dumps(evs, default=str)
+
+
+def test_occupancy_link_recovers_synthetic_signal(data):
+    from parallax.occupancy import build_panel, link, placebo, tenancies_from_leases
+    d, u, _, _ = data
+    p = build_panel(d.buildings, u, tenancies_from_leases(d.leases))
+    r = link(p)
+    assert r["usage_pts_per_10pt_occupancy"] > 0 and r["p_value"] < 0.01
+    assert placebo(p, n_iter=5)["passed"]

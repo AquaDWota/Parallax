@@ -3,8 +3,10 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AgentEvent } from "@/lib/api";
 
 const SUGGESTIONS = [
+  "Does parking track building occupancy?",
+  "Does a sharp drop in parking come before occupancy falls?",
+  "Does parking track occupancy for offices in Houston?",
   "Does parking usage predict lease renewals?",
-  "How far ahead does the signal show up for major tenants?",
   "Only Class A offices in LA?",
   "Is the link stronger in Houston or LA?",
   "Where does the link hold strongest?",
@@ -23,6 +25,10 @@ const TOOL_LABEL: Record<string, string> = {
   imagery_quality: "checked imagery quality",
   example_buildings: "pulled example buildings",
   submarket_context: "pulled submarket context",
+  occupancy_link: "compared lot usage with CoStar occupancy, building by building",
+  occupancy_lead_lag: "checked timing: occupancy before, at and after each capture",
+  occupancy_after_drop: "followed occupancy after sharp lot drops",
+  occupancy_by_group: "split the link by group",
 };
 
 function inline(s: string): ReactNode[] {
@@ -76,8 +82,8 @@ export default function AgentPanel({ turns, running, onAsk }: {
       <div className="col-body" aria-live="polite">
         {!turns.length && (
           <div className="empty">
-            <p>Ask a question about parking and lease renewals. The agent plans the analysis, runs it on every
-              measurable building, and shows what it excluded and why.</p>
+            <p>Ask how parking relates to tenants: occupancy, sharp drops, lease renewals. The agent plans the
+              analysis, runs it on every measurable building, and shows what it excluded and why.</p>
           </div>
         )}
         {plan && plan.type === "plan" && running && (

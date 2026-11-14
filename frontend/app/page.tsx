@@ -27,7 +27,10 @@ export default function Page() {
       setPi(Math.max(0, m.periods.indexOf(pre[pre.length - 1] ?? m.periods[0])));
     })
       .catch(() => setLoadError("Can't reach the API on port 8000. Start it with: cd backend && uvicorn api.main:app --port 8000"));
-    api.overview().then((o) => setResults({ bins: o.bins, regression: o.regression, regional: o.regional })).catch(() => {});
+    api.overview().then((o) => setResults({
+      occLink: o.occ_link?.bins ? o.occ_link : undefined, occLead: o.occ_lead, occDrop: o.occ_drop,
+      bins: o.bins, regression: o.regression, regional: o.regional,
+    })).catch(() => {});
   }, []);
 
   const period = meta?.periods[pi];
@@ -54,6 +57,10 @@ export default function Page() {
       setResults((r) => {
         const d = e.data;
         switch (e.tool) {
+          case "occupancy_link": return d.bins ? { ...r, occLink: d } : r;
+          case "occupancy_lead_lag": return { ...r, occLead: d };
+          case "occupancy_after_drop": return d.n_drops ? { ...r, occDrop: d } : r;
+          case "occupancy_by_group": return d.groups ? { ...r, occGroups: d } : r;
           case "usage_vs_renewal": return d.bins ? { ...r, bins: d } : r;
           case "regression": return d.odds_ratio_per_10pt_drop ? { ...r, regression: d } : r;
           case "lead_time": return { ...r, lead: d };
@@ -69,7 +76,7 @@ export default function Page() {
 
   const ask = useCallback(async (q: string) => {
     setRunning(true);
-    setResults((r) => ({ regional: r.regional, bins: r.bins, regression: r.regression }));
+    setResults((r) => ({ regional: r.regional, bins: r.bins, regression: r.regression, occLink: r.occLink, occLead: r.occLead, occDrop: r.occDrop }));
     setTurns((ts) => [...ts, { question: q, events: [] }]);
     try {
       await askStream(q, onEvent);
@@ -95,7 +102,7 @@ export default function Page() {
     <div className="shell">
       <header className="topbar">
         <h1 className="wordmark">Parallax</h1>
-        <p className="thesis">Does an emptying parking lot predict a tenant leaving? Surface-lot buildings in Houston and LA, from Vexcel aerial captures and CoStar tenancies.</p>
+        <p className="thesis">Parking lots as a live occupancy gauge: Vexcel aerial car counts against CoStar tenancies, Houston and LA, 2016 to 2026.</p>
         {meta && <span className="mode">{meta.data_mode === "synthetic" ? "Synthetic data" : "Real Vexcel + CoStar data"}, {meta.agent_mode === "llm" ? "LLM planner" : "scripted planner"}</span>}
       </header>
 

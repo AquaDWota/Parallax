@@ -213,6 +213,55 @@ def submarket_context(city: Optional[str] = None) -> str:
     return _json(dict(submarkets=m.round(3).replace({np.nan: None}).to_dict("records")))
 
 
-ALL_TOOLS = [build_lease_events, usage_vs_renewal, regression, lead_time, validate, compare_groups,
+# ---------------------------------------------------------------- occupancy (headline study)
+def _occ_panel(city=None, property_type=None, building_class=None):
+    from .occupancy import apply_filters as occ_filters
+    p = get_store().occupancy_panel()
+    f = {k: v for k, v in dict(city=city, property_type=property_type, building_class=building_class).items() if v}
+    return occ_filters(p, **f), f
+
+
+def occupancy_link(city: Optional[str] = None, property_type: Optional[str] = None,
+                   building_class: Optional[str] = None) -> str:
+    """Headline: within the same building, does parking usage move with building occupancy?
+    Occupancy = sq ft of CoStar tenancies active at the capture date / building size. Fixed effects
+    for building and year; reports usage points per 10 points of occupancy, with a placebo test."""
+    from . import occupancy as O
+    p, f = _occ_panel(city, property_type, building_class)
+    r = O.link(p)
+    if "error" not in r:
+        r["placebo"] = O.placebo(p, n_iter=20)
+    return _json(dict(filters=f, **r))
+
+
+def occupancy_lead_lag(city: Optional[str] = None, property_type: Optional[str] = None,
+                       building_class: Optional[str] = None) -> str:
+    """Timing: parking usage at a capture vs building occupancy 24 and 12 months before, at the capture,
+    and 12 and 24 months after. A link after the capture means parking runs ahead of CoStar's records."""
+    from . import occupancy as O
+    p, f = _occ_panel(city, property_type, building_class)
+    return _json(dict(filters=f, **O.lead_lag(p)))
+
+
+def occupancy_after_drop(city: Optional[str] = None, property_type: Optional[str] = None,
+                         building_class: Optional[str] = None, threshold: float = -30.0) -> str:
+    """Early warning: after a lot empties sharply between captures (usage falls more than |threshold|
+    points), how does building occupancy change by the next capture, compared with other buildings?"""
+    from . import occupancy as O
+    p, f = _occ_panel(city, property_type, building_class)
+    return _json(dict(filters=f, **O.drop_followthrough(p, float(threshold))))
+
+
+def occupancy_by_group(by: str = "property_type", city: Optional[str] = None,
+                       property_type: Optional[str] = None) -> str:
+    """Where the parking-occupancy link holds: rerun it per city, property_type or building_class."""
+    from . import occupancy as O
+    if by not in {"city", "property_type", "building_class"}:
+        return _json({"error": f"can't group by {by}"})
+    p, f = _occ_panel(city, property_type, None)
+    return _json(dict(filters=f, **O.by_group(p, by)))
+
+
+ALL_TOOLS = [occupancy_link, occupancy_lead_lag, occupancy_after_drop, occupancy_by_group, build_lease_events, usage_vs_renewal, regression, lead_time, validate, compare_groups,
              run_sql, regional_series, imagery_quality, example_buildings, submarket_context]
 TOOLS_BY_NAME = {t.__name__: t for t in ALL_TOOLS}

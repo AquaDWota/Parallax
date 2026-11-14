@@ -97,3 +97,10 @@ def load_real():
     leases_out["rent_psf"] = leases_out["rent_psf"].where(leases_out["rent_psf"] > 0)
     leases_out["rent_psf"] = leases_out["rent_psf"].fillna(leases_out["rent_psf"].median() if leases_out["rent_psf"].notna().any() else 25.0)
     return buildings, captures, car_counts, leases_out
+
+
+def load_tenancies(building_ids) -> pd.DataFrame:
+    """Every CoStar tenancy at the imaged properties (for building occupancy over time)."""
+    t = pd.read_csv(REAL_DIR / "costar_occupancy.csv", parse_dates=["from_date", "to_date"])
+    t = t[t.building_id.isin(set(building_ids))]
+    return t[["building_id", "from_date", "to_date", "sqft"]].reset_index(drop=True)

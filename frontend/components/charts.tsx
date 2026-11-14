@@ -168,3 +168,71 @@ export function Spark({ history, leases }: {
     </svg>
   );
 }
+
+
+/** Usage vs the building's own average, grouped by occupancy vs its own average. Diverging bars around 0. */
+export function OccBinsChart({ bins }: { bins: { label: string; n: number; occ_dev: number; usage_dev: number; ci_low: number; ci_high: number }[] }) {
+  const H = 220, top = 14, bottom = 56, left = 36;
+  const lo = Math.min(-10, ...bins.map((b) => b.ci_low)) - 2, hi = Math.max(10, ...bins.map((b) => b.ci_high)) + 2;
+  const y = (v: number) => top + (H - top - bottom) * (1 - (v - lo) / (hi - lo));
+  const bw = (W - left) / bins.length;
+  const ticks = [-40, -20, -10, 0, 10, 20, 40].filter((t) => t >= lo && t <= hi);
+  return (
+    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img"
+      aria-label={`Parking usage vs building's usual level, by occupancy: ${bins.map((b) => `${b.label} ${b.usage_dev}`).join(", ")}`}>
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={left} x2={W} y1={y(t)} y2={y(t)} stroke={t === 0 ? "#a7afb4" : "#e3e7e9"} />
+          <text x={left - 6} y={y(t) + 4} textAnchor="end">{t > 0 ? `+${t}` : t}</text>
+        </g>
+      ))}
+      {bins.map((b, i) => {
+        const x = left + i * bw + bw * 0.2, w = bw * 0.6;
+        const y0 = y(0), y1 = y(b.usage_dev);
+        return (
+          <g key={b.label}>
+            <rect x={x} y={Math.min(y0, y1)} width={w} height={Math.max(1, Math.abs(y1 - y0))}
+              fill={b.usage_dev < 0 ? "#3f6e9a" : "#c4861c"} opacity={0.9} />
+            <line x1={x + w / 2} x2={x + w / 2} y1={y(b.ci_low)} y2={y(b.ci_high)} stroke="#2b2f33" strokeWidth={1.5} />
+            <text x={x + w / 2 + 8} y={b.usage_dev < 0 ? y1 - 4 : y1 + 13} textAnchor="start" style={{ fill: "#2b2f33", fontWeight: 600 }}>
+              {b.usage_dev > 0 ? "+" : ""}{b.usage_dev}
+            </text>
+            <text x={x + w / 2} y={H - bottom + 16} textAnchor="middle">{b.label}</text>
+            <text x={x + w / 2} y={H - bottom + 29} textAnchor="middle">n={b.n}</text>
+          </g>
+        );
+      })}
+      <text x={left + (W - left) / 2} y={H - 4} textAnchor="middle">Occupancy vs the building's own average (CoStar)</text>
+    </svg>
+  );
+}
+
+/** Coefficient by when occupancy is measured relative to the capture. Reference line at 0. */
+export function OffsetChart({ offsets }: { offsets: { offset_months: number; coef_per_10pt?: number; ci_low?: number; ci_high?: number; p_value?: number }[] }) {
+  const rows = offsets.filter((o) => o.coef_per_10pt != null);
+  if (!rows.length) return null;
+  const H = 170, top = 14, bottom = 34, left = 36;
+  const lo = Math.min(-1, ...rows.map((r) => r.ci_low!)), hi = Math.max(1, ...rows.map((r) => r.ci_high!));
+  const y = (v: number) => top + (H - top - bottom) * (1 - (v - lo) / (hi - lo));
+  const step = (W - left) / rows.length;
+  return (
+    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Parking-occupancy link by timing">
+      <line x1={left} x2={W} y1={y(0)} y2={y(0)} stroke="#a7afb4" strokeDasharray="4 3" />
+      <text x={left - 6} y={y(0) + 4} textAnchor="end">0</text>
+      {rows.map((r, i) => {
+        const cx = left + step * (i + 0.5);
+        const sig = (r.p_value ?? 1) < 0.1;
+        return (
+          <g key={r.offset_months}>
+            <line x1={cx} x2={cx} y1={y(r.ci_low!)} y2={y(r.ci_high!)} stroke="#2b2f33" strokeWidth={1.5} />
+            <circle cx={cx} cy={y(r.coef_per_10pt!)} r={5} fill={sig ? "#f2c230" : "#ffffff"} stroke="#2b2f33" strokeWidth={1.5} />
+            <text x={cx + 9} y={y(r.coef_per_10pt!) + 4}>{r.coef_per_10pt! > 0 ? "+" : ""}{r.coef_per_10pt!.toFixed(1)}</text>
+            <text x={cx} y={H - bottom + 16} textAnchor="middle">
+              {r.offset_months === 0 ? "at capture" : `${r.offset_months > 0 ? "+" : ""}${r.offset_months} mo`}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}

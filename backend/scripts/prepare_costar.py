@@ -6,6 +6,7 @@ Put the two files in data/real/ (git-ignored) and run:
 Inputs : data/real/location-occupancy.jsonl, data/real/company-detail.jsonl,
          data/real/commercial-property.jsonl (type, class, RBA, submarket, parking by type)
 Outputs: data/real/costar_properties.csv  one row per property with a location
+         data/real/costar_occupancy.csv   every tenancy (from/to dates, sq ft) -> building occupancy over time
          data/real/costar_leases.csv      one row per lease expiry 2016-2026 with an inferred outcome
          data/real/costar_buildings.csv   properties ranked for imaging -> scripts.batch_car_counts --buildings
 
@@ -207,8 +208,20 @@ def main():
                         ev_by_prop[p["property_id"]], a["property_type"], a["building_class"],
                         a["surface_spaces"], a["parking_type"]])
 
+    with open(REAL / "costar_occupancy.csv", "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["building_id", "occupancy_id", "tenant_location_id", "from_date", "to_date", "sqft", "expiration_reason"])
+        n_occ = 0
+        for o in occ:
+            if o["propertyId"] not in props or not o.get("fromDate"):
+                continue
+            w.writerow([f"P{o['propertyId']}", o["id"], o.get("tenantLocationId") or "", o["fromDate"][:10],
+                        (o.get("toDate") or "")[:10], _sqft(o), o["expirationReason"]])
+            n_occ += 1
+
     oc = Counter(e["outcome"] for e in events)
     print(f"properties with location: {len(props):,}  ({Counter(p['city'] for p in props.values()).most_common(3)})")
+    print(f"tenancies written for occupancy: {n_occ:,}")
     print(f"lease expiries 2016-2026 with an outcome: {len(events):,}  {dict(oc)}")
     pt = Counter(attrs.get(p, blank)["parking_type"] for p in ev_by_prop)
     print(f"parking at properties with 2018+ expiries: {dict(pt)}")
