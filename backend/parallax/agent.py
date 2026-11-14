@@ -144,7 +144,11 @@ async def _ask_llm(question: str, history: list[dict] | None) -> AsyncIterator[d
                         except Exception:
                             pass
     except Exception as e:
-        yield {"type": "error", "text": f"agent error: {e}"}
+        # never let a model problem break the demo: say so, then run the same tools with the scripted planner
+        msg = str(e).split("\n")[0][:200]
+        yield {"type": "note", "text": f"The LLM planner failed ({msg}). Running the scripted planner instead."}
+        async for ev in _ask_scripted(question):
+            yield ev
         return
     yield {"type": "final", "text": final_text or "(no answer)"}
 
