@@ -47,6 +47,8 @@ CAP_COLS = ["capture_id", "city", "capture_date", "first_capture", "last_capture
 CC_COLS = ["building_id", "capture_id", "cars", "quality_flag", "mean_conf"]
 ORTHO_NAME = re.compile(r"^(us-[a-z]{2}-|[ns]\d{2}[ew]\d{2,3}-)")
 SQM_PER_STALL = 30.0
+PRECHECK = True
+PRECHECK_MIN_CARS = 5
 lock = threading.Lock()
 
 
@@ -144,7 +146,18 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
         except Exception:
             pass
     caps, rows = [], []
-    for n, x in sorted(cols.items(), key=lambda kv: kv[1].get("first-capture-date", "")):
+    ordered = sorted(cols.items(), key=lambda kv: kv[1].get("first-capture-date", ""))
+    # Pre-check on the newest capture: a lot with almost no cars is a garage building or a
+    # mis-placed lot. Skip its other captures to save ~10 API calls per building.
+    skip_rest = False
+    if PRECHECK and ordered:
+        try:
+            newest = ordered[-1][0]
+            if c.detect_cars(lot.wkt, collection=newest)["count"] < PRECHECK_MIN_CARS:
+                skip_rest = True
+        except Exception:
+            pass
+    for n, x in ordered:
         first, last = x.get("first-capture-date", ""), x.get("last-capture-date", "")
         if (b["city"], n) not in known_caps:
             mid = ""
@@ -156,6 +169,10 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
             caps.append(dict(capture_id=n, city=b["city"], capture_date=mid, first_capture=first[:10],
                              last_capture=last[:10], holiday=holiday(first, last)))
             known_caps.add((b["city"], n))
+        if skip_rest:
+            rows.append(dict(building_id=b["building_id"], capture_id=n, cars="",
+                             quality_flag="not_measurable", mean_conf=""))
+            continue
         try:
             d = c.detect_cars(lot.wkt, collection=n)
             conf = [z["confidence"] or 0 for z in d["detections"]]
@@ -179,7 +196,10 @@ def main():
     ap.add_argument("--min-sqft", type=float, default=15000, help="discover: min building footprint")
     ap.add_argument("--limit", type=int, default=60)
     ap.add_argument("--workers", type=int, default=3, help="parallel buildings (watch for 429s)")
+    ap.add_argument("--no-precheck", action="store_true", help="count every capture even if the newest lot is empty")
     a = ap.parse_args()
+    global PRECHECK
+    PRECHECK = not a.no_precheck
 
     c = VexcelClient()
     if a.buildings:
@@ -206,7 +226,8 @@ def main():
             b = futs[f]
             try:
                 n, ok = f.result()
-                print(f"[{i}/{len(todo)}] {b['building_id']}: {ok}/{n} collections counted  ({time.time() - t0:.0f}s)")
+                tag = "  (empty lot / garage - skipped)" if n and not ok else ""
+                print(f"[{i}/{len(todo)}] {b['building_id']} {b.get('name', '')}: {ok}/{n} collections counted{tag}  ({time.time() - t0:.0f}s)")
             except Exception as e:
                 print(f"[{i}/{len(todo)}] {b['building_id']}: FAILED {str(e)[:160]}")
     print(f"\nDone. Files in {OUT}. Tell Claude when it's finished.")
