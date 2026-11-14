@@ -109,6 +109,9 @@ def out_of_sample(ev: pd.DataFrame) -> dict:
     if len(tr) < 80 or len(te) < 40 or te.renewed.nunique() < 2:
         return {"error": "too few events for an out-of-sample split", "n_train": len(tr), "n_test": len(te)}
     base_terms = [c for c in ["C(city)", "C(property_type)", "C(building_class)"] if ev[c[2:-1]].nunique() > 1]
+    for c in base_terms:  # the test set can't contain categories the model never saw
+        col = c[2:-1]
+        te = te[te[col].isin(set(tr[col]))]
     base_f = "renewed ~ " + (" + ".join(base_terms) if base_terms else "1")
     full_f = "renewed ~ usage + trend" + ("".join(" + " + t for t in base_terms))
     try:
