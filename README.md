@@ -36,6 +36,7 @@ is everything in `data/` - the hackathon data is licensed for the event only).
 |---|---|
 | `VEXCEL_API_KEY` | imagery + car detection |
 | `ANTHROPIC_API_KEY` | the LLM planner (without it, a scripted planner runs the same tools) |
+| `GOOGLE_API_KEY` | alternative LLM: `pip install langchain-google-genai`, `PARALLAX_MODEL=google_genai:gemini-2.5-flash` |
 | `PARALLAX_MODEL` | any LangChain `provider:model`, default `anthropic:claude-sonnet-5-5` |
 | `PARALLAX_DATA_MODE` | `synthetic` or `real` |
 | `PARALLAX_AGENT` | `auto` (default) or `scripted` to force the deterministic planner for the demo |

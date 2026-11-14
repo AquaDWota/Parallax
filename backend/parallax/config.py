@@ -39,6 +39,7 @@ def llm_available() -> bool:
     key_env = {
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
+        "google_genai": "GOOGLE_API_KEY",
         "bedrock": "AWS_ACCESS_KEY_ID",
         "bedrock_converse": "AWS_ACCESS_KEY_ID",
     }.get(provider)
