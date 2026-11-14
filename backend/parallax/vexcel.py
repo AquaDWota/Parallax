@@ -23,6 +23,8 @@ import requests
 from . import config
 
 API = "https://api.vexcelgroup.com/v2"
+# collections with ortho imagery (test / oblique-only ones like sanborn-*, graydata-*, t-* have none)
+ORTHO_NAMES = __import__("re").compile(r"^(us-[a-z]{2}-|[ns]\d{2}[ew]\d{2,3}-)")
 LAYERS = "urban,urban-r,wide-area,urban-g"
 
 
@@ -123,6 +125,49 @@ class VexcelClient:
         return {"count": len(dets), "detections": [{"bbox": d.get("bbox"), "confidence": d.get("confidence")} for d in dets],
                 "raw": res}
 
+    def detect_cars_tiled(self, lot_wkt: str, collection: str | None = None, tile_m: float = 60.0,
+                          threshold: float = 0.5) -> dict:
+        """Count cars at full resolution: split the lot's bounding box into tile_m squares, run the detector on
+        each tile that touches the lot, keep cars whose centre is inside the lot, and drop duplicates on tile
+        edges. Needed because /elements/detect silently downsamples large areas (cars get too small to find).
+        tile_m <= 0 runs one call on the whole lot (the old behaviour)."""
+        from shapely import wkt as swkt
+        from shapely.geometry import Point, box
+
+        lot = swkt.loads(lot_wkt)
+        if tile_m <= 0:
+            d = self.detect_cars(lot_wkt, collection, threshold)
+            d["calls"] = 1
+            return d
+        x0, y0, x1, y1 = lot.bounds
+        lat = (y0 + y1) / 2
+        dx = tile_m / (111_320 * math.cos(math.radians(lat)))
+        dy = tile_m / 111_320
+        keep, calls = [], 0
+        nx, ny = max(1, math.ceil((x1 - x0) / dx)), max(1, math.ceil((y1 - y0) / dy))
+        for i in range(nx):
+            for j in range(ny):
+                t = box(x0 + i * dx, y0 + j * dy, min(x1, x0 + (i + 1) * dx), min(y1, y0 + (j + 1) * dy))
+                if not t.intersects(lot):
+                    continue
+                calls += 1
+                try:
+                    d = self.detect_cars(t.wkt, collection, threshold)
+                except RuntimeError as e:
+                    if "404" in str(e):
+                        continue
+                    raise
+                for det in d["detections"]:
+                    c = _bbox_centre(det.get("bbox"))
+                    if c is None or not lot.contains(Point(c)):
+                        continue
+                    # same car seen by two tiles: centres within ~1.5 m
+                    if any(abs(c[0] - k["c"][0]) < 1.5 * dx / tile_m and abs(c[1] - k["c"][1]) < 1.5 * dy / tile_m for k in keep):
+                        continue
+                    keep.append({"c": c, "bbox": det.get("bbox"), "confidence": det.get("confidence")})
+        return {"count": len(keep), "detections": [{"bbox": k["bbox"], "confidence": k["confidence"]} for k in keep],
+                "calls": calls}
+
     # ---------- semantic search ----------
     def search(self, wkt: str, text: str, n: int = 50) -> list[dict]:
         """Embedding search, e.g. text='surface parking lot' to find measurable lots in an area."""
@@ -130,6 +175,39 @@ class VexcelClient:
                                               "include": "score,geometry,collection",
                                               "total-records": n, "page-size": min(n, 100)})
         return res.get("features", [])
+
+
+def _bbox_centre(b):
+    """Detection bbox as WKT or [x0, y0, x1, y1] (lon/lat) -> (lon, lat) centre."""
+    if b is None:
+        return None
+    if isinstance(b, str):
+        from shapely import wkt as swkt
+        c = swkt.loads(b).centroid
+        return (c.x, c.y)
+    if isinstance(b, (list, tuple)) and len(b) == 4:
+        return ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+    if isinstance(b, dict) and "coordinates" in b:
+        from shapely.geometry import shape
+        c = shape(b).centroid
+        return (c.x, c.y)
+    return None
+
+
+def drawing_for(geom_wkt: str, color: str, width: int = 3) -> list[dict]:
+    """Outline a (multi)polygon with holes as separate rings - Vexcel draws a polygon with holes as one path,
+    which leaves stray lines joining the hole to the edge."""
+    from shapely import wkt as swkt
+    from shapely.geometry import Polygon
+
+    g = swkt.loads(geom_wkt)
+    out = []
+    for poly in getattr(g, "geoms", [g]):
+        if poly.is_empty or not hasattr(poly, "exterior"):
+            continue
+        for ring in [poly.exterior, *poly.interiors]:
+            out.append({"wkt": Polygon(ring).wkt, "outline-color": color, "outline-width": width})
+    return out
 
 
 def point(lat: float, lon: float) -> str:

@@ -5,7 +5,7 @@ in office and industrial parks the parking sits on a separate parcel or a shared
 
 v2 (this module): a ring around the building footprint, grown outward until it is large enough to
 hold the building's surface stalls (CoStar `surface_spaces` x 30 m^2, +30% for aisles), between
-MIN_RING_M and MAX_RING_M. The building's own parcel is always included. Buildings without a stall
+MIN_RING_M and MAX_RING_M. The building's own parcel is included unless it is far larger than the ring (a whole business park). Buildings without a stall
 count get DEFAULT_RING_M. The ring can take in a neighbour's or street cars; for the study that is
 fine as long as the area is the same at every capture (building fixed effects absorb the level).
 """
@@ -59,7 +59,8 @@ def lot_polygon_v2(parcel_feature: dict | None, lat: float, lon: float, surface_
 
     def ring(r):
         area = fp_m.buffer(r, join_style=2)
-        if parcel_m is not None:
+        # include the building's own parcel only when it's the building's own lot, not a whole business park
+        if parcel_m is not None and parcel_m.area <= 2.5 * area.area:
             area = area.union(parcel_m)
         return area.difference(fp_m)
 

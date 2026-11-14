@@ -21,6 +21,7 @@ log = logging.getLogger("parallax.imagery")
 IMG_DIR = config.DATA_DIR / "imagery"
 LOT_COLOR = "rgb(242,194,48)"
 CAR_COLOR = "rgb(0,229,255)"
+TILE_M = float(__import__("os").environ.get("PARALLAX_TILE_M", "60"))
 
 
 def cache_path(building_id: str, capture_id: str, boxes: bool = False) -> Path:
@@ -61,11 +62,12 @@ def fetch(building_id: str, capture_id: str, boxes: bool = False, size: str = "6
         return None
     out = cache_path(building_id, capture_id, boxes)
     out.parent.mkdir(parents=True, exist_ok=True)
+    from .vexcel import drawing_for
     c = _client()
-    drawing = [{"wkt": lot, "outline-color": LOT_COLOR, "outline-width": 3}]
+    drawing = drawing_for(lot, LOT_COLOR, 3)
     try:
         if boxes:
-            det = c.detect_cars(lot, collection=capture_id)
+            det = c.detect_cars_tiled(lot, collection=capture_id, tile_m=TILE_M)
             drawing += [{"wkt": d["bbox"], "outline-color": CAR_COLOR, "outline-width": 2}
                         for d in det["detections"] if d.get("bbox")]
         img = c.ortho(lot, collection=capture_id, buffer_m=15, drawing=drawing, dims=size)

@@ -50,6 +50,7 @@ CC_COLS = ["building_id", "capture_id", "cars", "quality_flag", "mean_conf"]
 ORTHO_NAME = re.compile(r"^(us-[a-z]{2}-|[ns]\d{2}[ew]\d{2,3}-)")
 SQM_PER_STALL = 30.0
 PRECHECK = True
+TILE_M = 60.0
 PRECHECK_MIN_CARS = 5
 lock = threading.Lock()
 
@@ -135,7 +136,7 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
                                    area=b.get("area", ""), lat=round(lat, 6), lon=round(lon, 6),
                                    lot_area_m2=round(lot_m2), hardscape_m2=round(hard_m2) if hard_m2 else "",
                                    footprint_m2=round(fp_sqft * 0.0929), stall_capacity_est=capacity,
-                                   lot_wkt=lot.wkt, lot_method="v2_stall_ring", ring_m=ring_m)])
+                                   lot_wkt=lot.wkt, lot_method=f"v3_ring_tiled{int(TILE_M)}", ring_m=ring_m)])
 
     cols = {}
     for pt in ("oblique", "nadir"):
@@ -154,7 +155,7 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     if PRECHECK and ordered:
         try:
             newest = ordered[-1][0]
-            if c.detect_cars(lot.wkt, collection=newest)["count"] < PRECHECK_MIN_CARS:
+            if c.detect_cars_tiled(lot.wkt, collection=newest, tile_m=TILE_M)["count"] < PRECHECK_MIN_CARS:
                 skip_rest = True
         except Exception:
             pass
@@ -175,7 +176,7 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
                              quality_flag="not_measurable", mean_conf=""))
             continue
         try:
-            d = c.detect_cars(lot.wkt, collection=n)
+            d = c.detect_cars_tiled(lot.wkt, collection=n, tile_m=TILE_M)
             conf = [z["confidence"] or 0 for z in d["detections"]]
             rows.append(dict(building_id=b["building_id"], capture_id=n, cars=d["count"],
                              quality_flag="ok", mean_conf=round(sum(conf) / len(conf), 3) if conf else ""))
@@ -200,15 +201,18 @@ def main():
     ap.add_argument("--no-precheck", action="store_true", help="count every capture even if the newest lot is empty")
     ap.add_argument("--redo", action="store_true", help="re-count buildings already done (the newest result wins)")
     ap.add_argument("--fresh", action="store_true", help="move existing output files to *_v1.csv and start clean")
+    ap.add_argument("--tile-m", type=float, default=60.0, help="detection tile size in metres (0 = whole lot in one call)")
+    ap.add_argument("--archive-tag", default="v1", help="suffix for --fresh archives")
     a = ap.parse_args()
-    global PRECHECK
+    global PRECHECK, TILE_M
     PRECHECK = not a.no_precheck
+    TILE_M = a.tile_m
 
     if a.fresh:
         for f in (F_BLD, F_CAP, F_CC):
             if f.exists():
-                f.rename(f.with_name(f.stem + "_v1.csv"))
-                print(f"moved {f.name} -> {f.stem}_v1.csv")
+                f.rename(f.with_name(f"{f.stem}_{a.archive_tag}.csv"))
+                print(f"moved {f.name} -> {f.stem}_{a.archive_tag}.csv")
     c = VexcelClient()
     if a.buildings:
         with open(a.buildings, newline="") as fh:
