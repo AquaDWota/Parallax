@@ -75,6 +75,35 @@ def test_off_day_fallback_without_neighbours():
     assert u.loc[("b0", "c3"), "quality_flag"] == "ok"
 
 
+def test_calendar_days():
+    from datetime import date
+    from parallax.photo_days import classify_str, day_kind
+    assert day_kind(date(2026, 1, 1)) == "holiday"
+    assert day_kind(date(2023, 11, 24)) == "holiday"      # Friday after Thanksgiving
+    assert day_kind(date(2021, 7, 5)) == "holiday"        # July 4 on a Sunday, observed Monday
+    assert day_kind(date(2025, 12, 31)) == "workday"      # lots look normal on Dec 31
+    assert day_kind(date(2025, 2, 16)) == "sunday"
+    assert classify_str("2022-01-28;2022-02-08") == "workday"
+    assert classify_str("2025-01-31;2025-02-16") == "mixed"
+    assert classify_str(None) == "unknown"
+
+
+def test_calendar_filter_drops_sundays_keeps_office_saturdays():
+    """A Sunday photo is dropped even with no neighbours; an office Saturday is kept, an industrial one dropped."""
+    b = pd.DataFrame(dict(building_id=["off", "ind"], city="X", submarket="S",
+                          property_type=["office", "industrial"], lat=[29.7, 30.5], lon=-95.5,
+                          stall_capacity=100, sqft=1e5))
+    caps = pd.DataFrame(dict(capture_id=[f"c{j}" for j in range(4)], city="X",
+                             capture_date=pd.to_datetime(DATES4)))
+    days = ["workday", "workday", "saturday", "sunday"]
+    cars = pd.DataFrame([dict(building_id=bid, capture_id=f"c{j}", cars=60, quality_flag="ok", day_type=days[j])
+                         for bid in ["off", "ind"] for j in range(4)])
+    u = compute_usage(b, caps, cars).set_index(["building_id", "capture_id"])
+    assert u.loc[("off", "c3"), "status"] == "dropped_sunday"
+    assert u.loc[("off", "c2"), "quality_flag"] == "ok"
+    assert u.loc[("ind", "c2"), "status"] == "dropped_saturday"
+
+
 def test_garages_and_bad_captures_excluded(data):
     d, u, ev, excl = data
     assert excl["garage_not_measurable"] > 0

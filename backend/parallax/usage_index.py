@@ -2,8 +2,10 @@
 
 Steps (plan section "Car counting and the usage index"):
   1. fill rate      = cars / stall capacity
-  1b. off days      = drop photos where the lot AND its same-flight neighbours sit far below their
-                      usual fill (weekend / holiday shot); a lot that is low on its own is kept
+  1b. off days      = drop photos taken on a Sunday or holiday (or Saturday for industrial/flex) -
+                      exact photo day from Vexcel; then drop photos where the lot AND its same-flight
+                      neighbours sit far below their usual fill (storms, undated weekends); a lot that
+                      is low on its own is kept
   2. peer-normalize = fill / median fill of same-type buildings within 2 km, same capture
                       (cancels time of day, weekday and season, which 2 captures a year can't control)
   3. baseline       = express as % of the building's own 2018-2019 average
@@ -96,7 +98,14 @@ def compute_usage(buildings: pd.DataFrame, captures: pd.DataFrame, car_counts: p
     df["_usable"] = df["quality_flag"].eq("ok") & df["cars"].notna()
     df["fill"] = np.where(df["_usable"], df["cars"] / df["stall_capacity"], np.nan)
 
-    # --- 1b. off days (weekends, holidays, storms) ---
+    # --- 1b. off days: the calendar first (exact photo day), then neighbours for the rest ---
+    if config.CALENDAR_FILTER and "day_type" in df.columns:
+        cal = df["day_type"].isin(["holiday", "sunday"]) | (
+            df["day_type"].eq("saturday") & df["property_type"].isin(config.SATURDAY_CLOSED))
+        cal &= df["_usable"]
+        df.loc[cal, "quality_flag"] = df.loc[cal, "day_type"]
+        df.loc[cal, "_usable"] = False
+        df.loc[cal, "fill"] = np.nan
     if config.OFF_DAY_FILTER:
         off = flag_off_days(df, peer_radius_km)
         df.loc[off, "quality_flag"] = "off_day"
