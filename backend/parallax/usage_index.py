@@ -51,34 +51,38 @@ def compute_usage(buildings: pd.DataFrame, captures: pd.DataFrame, car_counts: p
     # --- 2. peer normalization ---
     df["peer_median"] = np.nan
     df["_peer_group"] = df["property_type"] if config.PEER_BY_TYPE else "all"
+    PEER_FLOOR = 0.02  # a peer median near 0 (all neighbours empty or uncovered) would blow the ratio up
     for (_, _), g in df[usable].groupby(["_capture_key", "_peer_group"]):
         idx = g.index.to_numpy()
         fill = g["fill"].to_numpy()
         d = _pairwise_km(g["lat"].to_numpy(), g["lon"].to_numpy())
-        near = (d <= peer_radius_km) & ~np.eye(len(g), dtype=bool)
+        near = (d <= peer_radius_km) & ~np.eye(len(g), dtype=bool) & (fill > 0)[None, :]
         sub = g["submarket"].to_numpy()
+        pool = fill[fill > 0]
+        group_med = np.median(pool) if len(pool) else np.nan
         med = np.empty(len(g))
         for i in range(len(g)):
             peers = fill[near[i]]
-            if len(peers) < 3:  # too few neighbours: fall back to same-type submarket peers
-                peers = fill[(sub == sub[i]) & (np.arange(len(g)) != i)]
-            med[i] = np.median(peers) if len(peers) else np.nan
-        df.loc[idx, "peer_median"] = med
-    df["relative"] = df["fill"] / df["peer_median"]
+            if len(peers) < 3:  # too few neighbours: same-submarket peers, then everyone in the capture
+                peers = fill[(sub == sub[i]) & (np.arange(len(g)) != i) & (fill > 0)]
+            med[i] = np.median(peers) if len(peers) >= 3 else group_med
+        df.loc[idx, "peer_median"] = np.maximum(med, PEER_FLOOR)
+    df["relative"] = (df["fill"] / df["peer_median"]).clip(upper=10)
 
     # --- 3. baseline ---
     in_base = (df["capture_date"] >= config.BASELINE_RANGE[0]) & (df["capture_date"] < config.BASELINE_RANGE[1])
-    base = df[in_base].groupby("building_id")["relative"].mean().rename("baseline")
+    # median, not mean: one odd capture in the baseline window shouldn't set the whole building's scale
+    base = df[in_base].groupby("building_id")["relative"].median().rename("baseline")
     df = df.merge(base, on="building_id", how="left")
     base_cars = df[in_base].groupby("building_id")["cars"].mean().rename("baseline_cars")
     df = df.merge(base_cars, on="building_id", how="left")
     df["_low"] = df["baseline_cars"].fillna(0) < config.MIN_BASELINE_CARS
     low = df["_low"]
-    df.loc[low | (df["baseline"] <= 0), "baseline"] = np.nan
+    df.loc[low | (df["baseline"] <= 0) | ~np.isfinite(df["baseline"]), "baseline"] = np.nan
     df["index"] = (100 * df["relative"] / df["baseline"]).clip(upper=config.INDEX_CAP)
     # absolute index (no peer normalization): keeps market-wide shifts like COVID,
     # at the cost of capture-to-capture time-of-day noise. Used for regional series only.
-    base_fill = df[in_base].groupby("building_id")["fill"].mean().rename("baseline_fill")
+    base_fill = df[in_base].groupby("building_id")["fill"].median().rename("baseline_fill")
     df = df.merge(base_fill, on="building_id", how="left")
     df.loc[low | (df["baseline_fill"] <= 0), "baseline_fill"] = np.nan
     df["abs_index"] = (100 * df["fill"] / df["baseline_fill"]).clip(upper=config.INDEX_CAP)

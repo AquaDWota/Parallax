@@ -85,6 +85,22 @@ def load_real():
     garage = set(buildings.loc[buildings.parking_type != "surface", "building_id"])
     car_counts.loc[car_counts.building_id.isin(garage), ["cars", "quality_flag"]] = [np.nan, "not_measurable"]
 
+    # A 0 on a lot that normally holds 15+ cars is a collection that doesn't really cover the lot
+    # (e.g. one Oct-2016 collection says 0 where another flown the same day says 306), not an empty lot.
+    ok = car_counts.quality_flag.eq("ok") & car_counts.cars.notna()
+    typical = car_counts[ok].groupby("building_id").cars.median()
+    zero = ok & car_counts.cars.eq(0) & car_counts.building_id.map(typical).ge(15)
+    car_counts.loc[zero, "quality_flag"] = "suspect_zero"
+
+    # Capacity: the largest of CoStar's surface stalls, the lot-size estimate, and the busiest count seen.
+    # (CoStar has no stall count for many industrial buildings; a default of 50-100 gave fills of 170%.)
+    busiest = car_counts[car_counts.quality_flag.eq("ok")].groupby("building_id").cars.quantile(0.95)
+    est = vb.set_index("building_id")["stall_capacity_est"]
+    cap = buildings.set_index("building_id")["stall_capacity"].astype(float)
+    cap = np.maximum(cap, est.reindex(cap.index).fillna(0))
+    cap = np.maximum(cap, (1.1 * busiest).reindex(cap.index).fillna(0))
+    buildings["stall_capacity"] = buildings.building_id.map(cap).fillna(50).clip(lower=10).round().astype(int)
+
     # ---------- leases ----------
     l = leases[leases.building_id.isin(pb.building_id)].copy()
     leases_out = pd.DataFrame(dict(
