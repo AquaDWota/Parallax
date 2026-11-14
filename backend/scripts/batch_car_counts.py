@@ -37,7 +37,7 @@ from shapely import wkt as swkt
 from shapely.geometry import shape
 
 from parallax.config import DATA_DIR
-from parallax.lots import lot_polygon_v2
+from parallax.lots import lot_polygon_v2, subtract_all_footprints
 from parallax.vexcel import VexcelClient, square_around
 
 OUT = DATA_DIR / "real"
@@ -127,6 +127,20 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     except ValueError:
         stalls = float("nan")
     lot, ring_m, lot_m2 = lot_polygon_v2(feat, lat, lon, stalls)
+    n_fp = 0
+    try:  # neighbours' roofs inside the ring are not lot (they produced false 'cars' on AC units)
+        x0, y0, x1, y1 = lot.bounds
+        area = f"POLYGON(({x0} {y0},{x1} {y0},{x1} {y1},{x0} {y1},{x0} {y0}))"
+        r = c.send("GET", "property/extract", timeout=180, params={
+            "wkt": area, "srid": 4326, "layer": "urban,urban-r,wide-area,urban-g", "latest": "true",
+            "include": "precomputed", "page-size": 200})
+        if r.ok:
+            lot, n_fp = subtract_all_footprints(lot, r.json().get("features", []))
+            from parallax.lots import _to_m
+            from shapely.ops import transform
+            lot_m2 = transform(_to_m(lat)[0], lot).area
+    except Exception:
+        pass
     a = feat["properties"] if feat is not None else {}
     fp_sqft = sum(x.get("footprint.area") or 0 for x in a.get("structures", []) or [])
     hard = a.get("hardscapes.area")
@@ -136,7 +150,7 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
                                    area=b.get("area", ""), lat=round(lat, 6), lon=round(lon, 6),
                                    lot_area_m2=round(lot_m2), hardscape_m2=round(hard_m2) if hard_m2 else "",
                                    footprint_m2=round(fp_sqft * 0.0929), stall_capacity_est=capacity,
-                                   lot_wkt=lot.wkt, lot_method=f"v3_ring_tiled{int(TILE_M)}", ring_m=ring_m)])
+                                   lot_wkt=lot.wkt, lot_method=f"v4_ring_nofp{n_fp}_tiled{int(TILE_M)}", ring_m=ring_m)])
 
     cols = {}
     for pt in ("oblique", "nadir"):

@@ -75,3 +75,19 @@ def lot_polygon_v2(parcel_feature: dict | None, lat: float, lon: float, surface_
             lot = ring(r)
     lot = lot.buffer(0)
     return transform(back, lot), r, lot.area
+
+
+def subtract_all_footprints(lot, parcel_features: list):
+    """Cut every building footprint inside the area out of the lot (lon/lat geometries). Without this a
+    neighbour's roof inside the ring gets counted as lot, and AC units / roof shadows become false 'cars'."""
+    fps = []
+    for f in parcel_features or []:
+        for st in f.get("properties", {}).get("structures", []) or []:
+            w = st.get("footprint.wkt") or st.get("footprint-wkt")
+            if w:
+                g = swkt.loads(w)
+                if g.intersects(lot):
+                    fps.append(g.buffer(0))
+    if not fps:
+        return lot, 0
+    return lot.difference(unary_union(fps)).buffer(0), len(fps)
