@@ -23,6 +23,9 @@ import requests
 from . import config
 
 API = "https://api.vexcelgroup.com/v2"
+# Detector settings, overridable from .env after scripts.calibrate_detection
+DETECT_THRESHOLD = float(__import__("os").environ.get("PARALLAX_DETECT_THRESHOLD", "0.5"))
+DETECT_LABELS = tuple(x.strip() for x in __import__("os").environ.get("PARALLAX_DETECT_LABELS", "car").split(",") if x.strip())
 # collections with ortho imagery (test / oblique-only ones like sanborn-*, graydata-*, t-* have none)
 ORTHO_NAMES = __import__("re").compile(r"^(us-[a-z]{2}-|[ns]\d{2}[ew]\d{2,3}-)")
 LAYERS = "urban,urban-r,wide-area,urban-g"
@@ -108,25 +111,26 @@ class VexcelClient:
         return self.post("ortho/extract", body, expect_json=False)
 
     # ---------- car detection ----------
-    def detect_cars(self, wkt: str, collection: str | None = None, threshold: float = 0.5) -> dict:
-        """Run Vexcel's sam3 detector for 'car' on the ortho of `wkt` (optionally a given collection).
-        Returns {"count", "detections":[{bbox, confidence}], "raw"}."""
+    def detect_cars(self, wkt: str, collection: str | None = None, threshold: float = DETECT_THRESHOLD,
+                    labels: tuple = DETECT_LABELS) -> dict:
+        """Run Vexcel's sam3 detector on the ortho of `wkt` (optionally a given collection) for each label in
+        `labels` (default "car"). Returns {"count", "detections":[{bbox, confidence, label}], "raw"}."""
         req: dict[str, Any] = {"layer": LAYERS, "srid": 4326, "wkt": wkt, "crop": "bounding_box"}
         if collection:
             req["collection"] = collection
         res = self.post("elements/detect", {
             "wkt": wkt, "srid": 4326, "buffer-meter": 0,
             "images": [{"endpoint": "ortho/extract", "request": req}],
-            "model-input": {"elements": [{"label": "car", "model": "sam3", "detection-threshold": threshold}],
+            "model-input": {"elements": [{"label": l, "model": "sam3", "detection-threshold": threshold} for l in labels],
                             "include": ["bbox", "confidence"]},
         })
-        dets = [d for f in res.get("features", []) if f["properties"].get("label") == "car"
-                for d in f["properties"].get("detections", [])]
-        return {"count": len(dets), "detections": [{"bbox": d.get("bbox"), "confidence": d.get("confidence")} for d in dets],
-                "raw": res}
+        dets = [dict(d, label=f["properties"].get("label")) for f in res.get("features", [])
+                if f["properties"].get("label") in labels for d in f["properties"].get("detections", [])]
+        return {"count": len(dets), "detections": [{"bbox": d.get("bbox"), "confidence": d.get("confidence"),
+                                                     "label": d.get("label")} for d in dets], "raw": res}
 
     def detect_cars_tiled(self, lot_wkt: str, collection: str | None = None, tile_m: float = 60.0,
-                          threshold: float = 0.5) -> dict:
+                          threshold: float = DETECT_THRESHOLD, labels: tuple = DETECT_LABELS) -> dict:
         """Count cars at full resolution: split the lot's bounding box into tile_m squares, run the detector on
         each tile that touches the lot, keep cars whose centre is inside the lot, and drop duplicates on tile
         edges. Needed because /elements/detect silently downsamples large areas (cars get too small to find).
@@ -136,7 +140,7 @@ class VexcelClient:
 
         lot = swkt.loads(lot_wkt)
         if tile_m <= 0:
-            d = self.detect_cars(lot_wkt, collection, threshold)
+            d = self.detect_cars(lot_wkt, collection, threshold, labels)
             d["calls"] = 1
             return d
         x0, y0, x1, y1 = lot.bounds
@@ -152,7 +156,7 @@ class VexcelClient:
                     continue
                 calls += 1
                 try:
-                    d = self.detect_cars(t.wkt, collection, threshold)
+                    d = self.detect_cars(t.wkt, collection, threshold, labels)
                 except RuntimeError as e:
                     if "404" in str(e):
                         continue
@@ -164,8 +168,9 @@ class VexcelClient:
                     # same car seen by two tiles: centres within ~1.5 m
                     if any(abs(c[0] - k["c"][0]) < 1.5 * dx / tile_m and abs(c[1] - k["c"][1]) < 1.5 * dy / tile_m for k in keep):
                         continue
-                    keep.append({"c": c, "bbox": det.get("bbox"), "confidence": det.get("confidence")})
-        return {"count": len(keep), "detections": [{"bbox": k["bbox"], "confidence": k["confidence"]} for k in keep],
+                    keep.append({"c": c, "bbox": det.get("bbox"), "confidence": det.get("confidence"),
+                                 "label": det.get("label")})
+        return {"count": len(keep), "detections": [{k2: k[k2] for k2 in ("bbox", "confidence", "label")} for k in keep],
                 "calls": calls}
 
     # ---------- semantic search ----------
