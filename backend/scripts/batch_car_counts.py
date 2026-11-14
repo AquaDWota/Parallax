@@ -18,7 +18,8 @@ What the probe taught us (built in here):
   * ~1 collection a year 2016/17-2026, from overlapping campaigns -> capture_id = collection name
   * test / oblique-only collections (sanborn, graydata, t-*) have no ortho -> skipped by name
   * captures flown Dec 15 - Jan 5 or Thanksgiving week are flagged holiday=1 (lots look empty)
-  * Detection runs on the lot = parcel minus building footprints
+  * Detection runs on the lot: a ring around the building sized to CoStar's surface stall count
+    (parallax.lots, v2). v1 used parcel minus footprint, which missed lots on neighbouring parcels.
 """
 from __future__ import annotations
 
@@ -36,13 +37,14 @@ from shapely import wkt as swkt
 from shapely.geometry import shape
 
 from parallax.config import DATA_DIR
-from parallax.vexcel import VexcelClient, lot_polygon, square_around
+from parallax.lots import lot_polygon_v2
+from parallax.vexcel import VexcelClient, square_around
 
 OUT = DATA_DIR / "real"
 OUT.mkdir(parents=True, exist_ok=True)
 F_BLD, F_CAP, F_CC = OUT / "vexcel_buildings.csv", OUT / "captures.csv", OUT / "car_counts.csv"
 BLD_COLS = ["building_id", "name", "city", "area", "lat", "lon", "lot_area_m2", "hardscape_m2",
-            "footprint_m2", "stall_capacity_est", "lot_wkt"]
+            "footprint_m2", "stall_capacity_est", "lot_wkt", "lot_method", "ring_m"]
 CAP_COLS = ["capture_id", "city", "capture_date", "first_capture", "last_capture", "holiday"]
 CC_COLS = ["building_id", "capture_id", "cars", "quality_flag", "mean_conf"]
 ORTHO_NAME = re.compile(r"^(us-[a-z]{2}-|[ns]\d{2}[ew]\d{2,3}-)")
@@ -119,27 +121,21 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     if feat is None:
         prop = c.parcel(lat, lon)
         feat = prop["features"][0] if prop and prop.get("features") else None
-    if feat is not None:
-        a = feat["properties"]
-        lot = swkt.loads(lot_polygon(feat))
-        fp_sqft = sum(x.get("footprint.area") or 0 for x in a.get("structures", []))
-        hard = a.get("hardscapes.area")
-    else:
-        lot, fp_sqft, hard = swkt.loads(square_around(lat, lon, 60)), 0, None
-    lot_m2 = m2(lot, lat)
-    hard_m2 = (float(hard) * 0.0929) if hard else None  # imperial sq ft -> m^2
-    cap_area = min(hard_m2, lot_m2) if hard_m2 else lot_m2 * 0.7
-    capacity = max(10, int(cap_area / SQM_PER_STALL))
-    try:  # CoStar's surface stall count beats the area estimate
-        if b.get("surface_spaces") and float(b["surface_spaces"]) >= 10:
-            capacity = int(float(b["surface_spaces"]))
+    try:
+        stalls = float(b.get("surface_spaces") or "nan")
     except ValueError:
-        pass
+        stalls = float("nan")
+    lot, ring_m, lot_m2 = lot_polygon_v2(feat, lat, lon, stalls)
+    a = feat["properties"] if feat is not None else {}
+    fp_sqft = sum(x.get("footprint.area") or 0 for x in a.get("structures", []) or [])
+    hard = a.get("hardscapes.area")
+    hard_m2 = (float(hard) * 0.0929) if hard else None  # imperial sq ft -> m^2
+    capacity = max(10, int(lot_m2 / (SQM_PER_STALL * 1.3)))
     _append(F_BLD, BLD_COLS, [dict(building_id=b["building_id"], name=b.get("name", ""), city=b["city"],
                                    area=b.get("area", ""), lat=round(lat, 6), lon=round(lon, 6),
                                    lot_area_m2=round(lot_m2), hardscape_m2=round(hard_m2) if hard_m2 else "",
                                    footprint_m2=round(fp_sqft * 0.0929), stall_capacity_est=capacity,
-                                   lot_wkt=lot.wkt)])
+                                   lot_wkt=lot.wkt, lot_method="v2_stall_ring", ring_m=ring_m)])
 
     cols = {}
     for pt in ("oblique", "nadir"):
@@ -203,10 +199,16 @@ def main():
     ap.add_argument("--workers", type=int, default=3, help="parallel buildings (watch for 429s)")
     ap.add_argument("--no-precheck", action="store_true", help="count every capture even if the newest lot is empty")
     ap.add_argument("--redo", action="store_true", help="re-count buildings already done (the newest result wins)")
+    ap.add_argument("--fresh", action="store_true", help="move existing output files to *_v1.csv and start clean")
     a = ap.parse_args()
     global PRECHECK
     PRECHECK = not a.no_precheck
 
+    if a.fresh:
+        for f in (F_BLD, F_CAP, F_CC):
+            if f.exists():
+                f.rename(f.with_name(f.stem + "_v1.csv"))
+                print(f"moved {f.name} -> {f.stem}_v1.csv")
     c = VexcelClient()
     if a.buildings:
         with open(a.buildings, newline="") as fh:
