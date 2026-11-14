@@ -2,6 +2,8 @@
 
 Steps (plan section "Car counting and the usage index"):
   1. fill rate      = cars / stall capacity
+  1b. off days      = drop photos where the lot AND its same-flight neighbours sit far below their
+                      usual fill (weekend / holiday shot); a lot that is low on its own is kept
   2. peer-normalize = fill / median fill of same-type buildings within 2 km, same capture
                       (cancels time of day, weekday and season, which 2 captures a year can't control)
   3. baseline       = express as % of the building's own 2018-2019 average
@@ -25,6 +27,53 @@ def _pairwise_km(lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
     return 2 * EARTH_KM * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
 
 
+def flag_off_days(df: pd.DataFrame, radius_km: float = config.PEER_RADIUS_KM) -> pd.Series:
+    """True for photos that look like an off day (weekend, holiday, storm) rather than a real drop.
+
+    A photo is "low" when the lot is below OFF_DAY_RATIO of its own usual (median) fill. A low photo is
+    an off day when the median neighbour within radius_km *in the same flight* was low too - nearby lots
+    in one flight are usually shot on the same day. A low photo with normal neighbours is kept: that
+    building really emptied. With fewer than OFF_DAY_MIN_PEERS neighbours, fall back to the same
+    building's other photos that year: off day if one of them has at least twice the cars.
+    Needs columns: building_id, capture_id, capture_date, lat, lon, cars, fill, _usable (+ period).
+    """
+    off = pd.Series(False, index=df.index)
+    u = df[df["_usable"]]
+    if u.empty:
+        return off
+    typical = u.groupby("building_id")["fill"].median().replace(0, np.nan)
+    n_photos = u.groupby("building_id").size()
+    bid = u["building_id"]
+    ratio = (u["fill"] / bid.map(typical)).where(bid.map(n_photos) >= 3)  # need a usual level
+    low = ratio < config.OFF_DAY_RATIO
+
+    decided = pd.Series(False, index=u.index)
+    for _, g in u.groupby("capture_id"):
+        if len(g) < 2 or not low.loc[g.index].any():
+            continue
+        d = _pairwise_km(g["lat"].to_numpy(), g["lon"].to_numpy())
+        same = g["building_id"].to_numpy()[:, None] == g["building_id"].to_numpy()[None, :]
+        near = (d <= radius_km) & ~same
+        r = ratio.loc[g.index].to_numpy()
+        for i, idx in enumerate(g.index):
+            if not low.loc[idx]:
+                continue
+            peers = r[near[i]]
+            peers = peers[np.isfinite(peers)]
+            if len(peers) >= config.OFF_DAY_MIN_PEERS:
+                decided.loc[idx] = True
+                off.loc[idx] = bool(np.median(peers) < config.OFF_DAY_RATIO)
+
+    # fallback: too few neighbours in the flight -> compare with the building's own photos that year
+    fb = low & ~decided
+    if fb.any():
+        year = u["period"].astype(str) if "period" in u.columns else u["capture_date"].dt.year.astype(str)
+        best = u.groupby([bid, year])["cars"].transform("max")
+        hit = (best >= 2 * u["cars"]) & (best >= 10)
+        off.loc[fb[fb & hit].index] = True
+    return off
+
+
 def compute_usage(buildings: pd.DataFrame, captures: pd.DataFrame, car_counts: pd.DataFrame,
                   noise: float = 0.0, seed: int = 0,
                   peer_radius_km: float = config.PEER_RADIUS_KM) -> pd.DataFrame:
@@ -45,8 +94,15 @@ def compute_usage(buildings: pd.DataFrame, captures: pd.DataFrame, car_counts: p
         df["cars"] = df["cars"] * rng.uniform(1 - noise, 1 + noise, len(df))
 
     df["_usable"] = df["quality_flag"].eq("ok") & df["cars"].notna()
+    df["fill"] = np.where(df["_usable"], df["cars"] / df["stall_capacity"], np.nan)
+
+    # --- 1b. off days (weekends, holidays, storms) ---
+    if config.OFF_DAY_FILTER:
+        off = flag_off_days(df, peer_radius_km)
+        df.loc[off, "quality_flag"] = "off_day"
+        df.loc[off, "_usable"] = False
+        df.loc[off, "fill"] = np.nan
     usable = df["_usable"]
-    df["fill"] = np.where(usable, df["cars"] / df["stall_capacity"], np.nan)
 
     # --- 2. peer normalization ---
     df["peer_median"] = np.nan

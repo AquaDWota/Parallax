@@ -45,6 +45,13 @@ BASELINE_RANGE = ("2016-01-01", "2020-03-01") if REAL else ("2018-01-01", "2020-
 PEER_BY_TYPE = not REAL
 # Real data: small lots make the index jumpy - require a baseline of at least this many cars.
 MIN_BASELINE_CARS = 8 if REAL else 0
+# Off-day filter: a photo is dropped as an off day (weekend / holiday / storm) when the lot is below
+# OFF_DAY_RATIO of its own usual fill AND the median neighbour in the same flight is too. Vexcel only
+# gives a flight's date range (median ~24 days), not the day each building was shot, so the
+# neighbours stand in for the calendar. Set PARALLAX_OFF_DAY=0 to switch it off and compare.
+OFF_DAY_FILTER = os.environ.get("PARALLAX_OFF_DAY", "1") == "1"
+OFF_DAY_RATIO = 0.5            # "low" = below half the lot's usual fill
+OFF_DAY_MIN_PEERS = 3          # neighbours needed in the same flight; fewer -> same-year fallback
 INDEX_CAP = 300.0
 DROP_THRESHOLD = 85.0          # index below this counts as a drop
 DROP_MIN_CAPTURES = 2          # ... only if it persists this many captures
