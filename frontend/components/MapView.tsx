@@ -27,11 +27,13 @@ export default function MapView({ city, buildings, selected, onSelect }: {
   const c = CENTERS[city] ?? CENTERS.Houston;
   return (
     <MapContainer center={[c[0], c[1]]} zoom={c[2]} preferCanvas scrollWheelZoom>
+      {/* Keyless OpenStreetMap tiles, desaturated in CSS so the usage colors carry the map */}
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
-        attribution='&copy; OpenStreetMap contributors &copy; CARTO'
+        className="basemap"
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; OpenStreetMap contributors'
+        maxZoom={19}
       />
-      <TileLayer url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png" opacity={0.7} />
       <Recenter city={city} />
       {buildings.map((b) => {
         const garage = b.parking !== "surface";

@@ -76,6 +76,7 @@ button, input { font: inherit; color: inherit; }
 /* ---------- map column ---------- */
 .mapwrap { position: relative; flex: 1; min-height: 260px; }
 .mapwrap .leaflet-container { position: absolute; inset: 0; background: #dfe4e6; }
+.basemap { filter: grayscale(1) contrast(0.85) brightness(1.08); opacity: 0.75; }
 .citypick { display: flex; gap: 0.25rem; }
 .citypick button {
   border: 1px solid var(--rule); background: var(--panel); padding: 0.2rem 0.7rem;
