@@ -99,58 +99,98 @@ def _val(x):
     return getattr(x, "value", x)
 
 
+STEP_TIMEOUT_S = float(os.environ.get("PARALLAX_STEP_TIMEOUT", "60"))
+TOTAL_TIMEOUT_S = float(os.environ.get("PARALLAX_TOTAL_TIMEOUT", "150"))
+
+
+def _log(msg: str):
+    print(f"[agent] {msg}", flush=True)
+
+
+async def _llm_events(agent_graph, msgs):
+    """Translate the deep agent's stream into UI events."""
+    final_text = None
+    async for ns, update in agent_graph.astream({"messages": msgs}, stream_mode="updates", subgraphs=True):
+        who = "planner" if not ns else "helper"
+        for node, state in (update or {}).items():
+            state = _val(state)
+            if not isinstance(state, dict):
+                continue
+            todos = _val(state.get("todos"))
+            if todos and not ns:
+                yield {"type": "plan", "todos": [dict(content=t.get("content"), status=t.get("status")) for t in todos]}
+            messages = _val(state.get("messages")) or []
+            if not isinstance(messages, list):
+                messages = [messages]
+            for m in messages:
+                kind = getattr(m, "type", None)
+                if kind == "ai":
+                    for tc in getattr(m, "tool_calls", None) or []:
+                        _log(f"{who} calls {tc['name']}")
+                        if tc["name"] == "write_todos" and not ns:
+                            todos = (tc.get("args") or {}).get("todos") or []
+                            yield {"type": "plan", "todos": [dict(content=t.get("content"), status=t.get("status", "pending")) for t in todos]}
+                        elif tc["name"] == "task":
+                            a = tc.get("args", {})
+                            yield {"type": "note", "text": f"Delegating to {a.get('subagent_type')}: {a.get('description', '')[:200]}"}
+                        elif tc["name"] in TOOLS_BY_NAME:
+                            yield {"type": "step", "agent": who, "tool": tc["name"], "args": tc.get("args", {})}
+                    text = m.content if isinstance(m.content, str) else "".join(
+                        b.get("text", "") for b in m.content if isinstance(b, dict))
+                    if text and not getattr(m, "tool_calls", None):
+                        if ns:
+                            yield {"type": "note", "text": text[:600]}
+                        else:
+                            final_text = text
+                elif kind == "tool" and getattr(m, "name", None) in TOOLS_BY_NAME:
+                    try:
+                        yield {"type": "result", "tool": m.name, "data": json.loads(m.content)}
+                    except Exception:
+                        pass
+    yield {"type": "final", "text": final_text or "(the planner finished without writing a note)"}
+
+
 async def _ask_llm(question: str, history: list[dict] | None) -> AsyncIterator[dict]:
+    yield {"type": "note", "text": f"Planning with {config.MODEL}..."}
+    _log(f"question: {question!r} via {config.MODEL}")
     try:
-        agent = _build_deep_agent()
+        agent_graph = _build_deep_agent()
     except Exception as e:
-        yield {"type": "note", "text": f"LLM agent unavailable ({e}); using scripted planner."}
+        _log(f"could not build the LLM agent: {e}")
+        yield {"type": "note", "text": f"LLM agent unavailable ({str(e)[:160]}); using the scripted planner."}
         async for ev in _ask_scripted(question):
             yield ev
         return
     msgs = list(history or []) + [{"role": "user", "content": question}]
-    final_text = None
+    it = _llm_events(agent_graph, msgs).__aiter__()
+    loop = asyncio.get_running_loop()
+    t0 = loop.time()
+    got_final = False
     try:
-        async for ns, update in agent.astream({"messages": msgs}, stream_mode="updates", subgraphs=True):
-            who = "planner" if not ns else "helper"
-            for node, state in (update or {}).items():
-                state = _val(state)
-                if not isinstance(state, dict):
-                    continue
-                todos = _val(state.get("todos"))
-                if todos and not ns:
-                    yield {"type": "plan", "todos": [dict(content=t.get("content"), status=t.get("status")) for t in todos]}
-                messages = _val(state.get("messages")) or []
-                if not isinstance(messages, list):
-                    messages = [messages]
-                for m in messages:
-                    kind = getattr(m, "type", None)
-                    if kind == "ai":
-                        for tc in getattr(m, "tool_calls", None) or []:
-                            if tc["name"] == "task":
-                                a = tc.get("args", {})
-                                yield {"type": "note", "text": f"Delegating to {a.get('subagent_type')}: {a.get('description', '')[:200]}"}
-                            elif tc["name"] in TOOLS_BY_NAME:
-                                yield {"type": "step", "agent": who, "tool": tc["name"], "args": tc.get("args", {})}
-                        text = m.content if isinstance(m.content, str) else "".join(
-                            b.get("text", "") for b in m.content if isinstance(b, dict))
-                        if text and not getattr(m, "tool_calls", None):
-                            if ns:
-                                yield {"type": "note", "text": text[:600]}
-                            else:
-                                final_text = text
-                    elif kind == "tool" and getattr(m, "name", None) in TOOLS_BY_NAME:
-                        try:
-                            yield {"type": "result", "tool": m.name, "data": json.loads(m.content)}
-                        except Exception:
-                            pass
+        while True:
+            left = TOTAL_TIMEOUT_S - (loop.time() - t0)
+            if left <= 0:
+                raise asyncio.TimeoutError(f"no answer after {TOTAL_TIMEOUT_S:.0f}s")
+            try:
+                ev = await asyncio.wait_for(it.__anext__(), timeout=min(STEP_TIMEOUT_S, left))
+            except StopAsyncIteration:
+                break
+            if ev["type"] == "final":
+                got_final = True
+            yield ev
     except Exception as e:
+        msg = (str(e) or type(e).__name__).split("\n")[0][:200]
+        if isinstance(e, asyncio.TimeoutError):
+            msg = f"no step for {STEP_TIMEOUT_S:.0f}s" if not str(e) else str(e)
+        _log(f"LLM planner failed: {msg}")
         # never let a model problem break the demo: say so, then run the same tools with the scripted planner
-        msg = str(e).split("\n")[0][:200]
         yield {"type": "note", "text": f"The LLM planner failed ({msg}). Running the scripted planner instead."}
         async for ev in _ask_scripted(question):
             yield ev
         return
-    yield {"type": "final", "text": final_text or "(no answer)"}
+    _log(f"done in {loop.time() - t0:.0f}s")
+    if not got_final:
+        yield {"type": "final", "text": "(the planner finished without writing a note)"}
 
 
 # ------------------------------------------------------------------ scripted path
