@@ -112,3 +112,18 @@ What real mode changes: captures are Vexcel collections (~1 a year 2016-2026), c
 in the same city and campaign year; baseline is 2016 to Feb 2020; lots with a baseline under 8 cars are
 dropped; garage buildings (from CoStar parking, or an empty newest lot) are excluded; lease outcomes
 come from CoStar `expirationReason` (7/12 renewal, 8 shed space, 1/4/10/... moved out).
+
+## Open-source car detector (branch `yolo-detector`)
+
+A second car count from a pretrained Ultralytics YOLO OBB model (DOTA classes `small vehicle`, `large vehicle`), run on plain Vexcel ortho tiles resampled to 15 cm/px. It's there to check the Vexcel sam3 counts. Settings live in `.env` (`PARALLAX_YOLO_*`).
+
+```bash
+pip install -r backend/requirements.txt          # adds ultralytics; first run downloads yolo11s-obb.pt
+cd backend
+python -m scripts.batch_yolo_counts --limit 50   # resumable; --building ID, --workers 3, --all-pairs
+python -m scripts.compare_detectors              # r, median ratio, 20 biggest disagreements -> vexcel_output/compare/
+python -m scripts.compare_detectors --images 20  # lot + sam3 (cyan) + YOLO (magenta) boxes on the full image
+PARALLAX_CAR_COUNTS=car_counts_yolo.csv python -m scripts.build   # run the whole pipeline on YOLO counts
+```
+
+Tiles are cached in `data/imagery_tiles/` (git-ignored) as PNG, because JPEG compression wipes out small cars. The YOLO build writes its own `parallax_real_car_counts_yolo.duckdb`, so the default sam3 database is never touched. Ultralytics is AGPL-3.0: fine for this hackathon, but check the licence before any public or commercial release.

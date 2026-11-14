@@ -110,6 +110,24 @@ class VexcelClient:
             body["destination-dimensions"] = dims
         return self.post("ortho/extract", body, expect_json=False)
 
+    def ortho_with_size(self, wkt: str, collection: str | None = None, dims: str | None = None,
+                        image_format: str = "jpeg") -> tuple[bytes, tuple[int, int]]:
+        """Plain ortho of `wkt`'s bounding box (no outline or drawing, no buffer), at native resolution unless
+        `dims` is given. Returns (image bytes, (width, height)). Raises RuntimeError on 404 (no image)."""
+        import io
+
+        from PIL import Image
+
+        body: dict[str, Any] = {"wkt": wkt, "srid": 4326, "layer": LAYERS, "buffer-meter": 0,
+                                "crop": "bounding_box", "image-format": image_format}
+        if collection:
+            body["collection"] = collection
+        if dims:
+            body["destination-dimensions"] = dims
+        img = self.post("ortho/extract", body, expect_json=False)
+        with Image.open(io.BytesIO(img)) as im:
+            return img, im.size
+
     # ---------- car detection ----------
     def detect_cars(self, wkt: str, collection: str | None = None, threshold: float = DETECT_THRESHOLD,
                     labels: tuple = DETECT_LABELS) -> dict:

@@ -8,6 +8,8 @@ data/*
 vexcel_output/
 *.duckdb
 *.parquet
+# model weights (downloaded by ultralytics)
+*.pt
 # python
 __pycache__/
 *.pyc

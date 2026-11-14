@@ -99,7 +99,7 @@ def _inputs_newer_than_db() -> bool:
     if config.DATA_MODE != "real" or not config.DB_PATH.exists():
         return False
     db_time = config.DB_PATH.stat().st_mtime
-    names = ["car_counts.csv", "captures.csv", "vexcel_buildings.csv", "costar_properties.csv",
+    names = [config.CAR_COUNTS_FILE, "captures.csv", "vexcel_buildings.csv", "costar_properties.csv",
              "costar_leases.csv", "costar_occupancy.csv", "costar_upcoming.csv"]
     return any((config.DATA_DIR / "real" / n).exists() and (config.DATA_DIR / "real" / n).stat().st_mtime > db_time
                for n in names)

@@ -6,7 +6,8 @@ Files in data/real/ (git-ignored):
   costar_leases.csv       prepare_costar   lease expiries with outcomes
   vexcel_buildings.csv    batch            lot polygon area and stall estimate per imaged building
   captures.csv            batch            one row per Vexcel collection (capture_id = collection name)
-  car_counts.csv          batch            cars per building per collection
+  car_counts.csv          batch            cars per building per collection (sam3; or car_counts_yolo.csv
+                                           from scripts.batch_yolo_counts, chosen with PARALLAX_CAR_COUNTS)
 
 Buildings = every imaged building: CoStar properties (P<id>) plus discovered neighbours (V-...),
 which have no leases but improve the peer comparison.
@@ -40,7 +41,9 @@ def load_real():
     props = pd.read_csv(REAL_DIR / "costar_properties.csv")
     vb = pd.read_csv(REAL_DIR / "vexcel_buildings.csv").drop_duplicates("building_id", keep="last")
     caps = pd.read_csv(REAL_DIR / "captures.csv", parse_dates=["capture_date"]).drop_duplicates("capture_id")
-    cc = pd.read_csv(REAL_DIR / "car_counts.csv").drop_duplicates(["building_id", "capture_id"], keep="last")
+    # PARALLAX_CAR_COUNTS picks the detector: car_counts.csv (sam3, default) or car_counts_yolo.csv
+    cc = pd.read_csv(REAL_DIR / config.CAR_COUNTS_FILE).drop_duplicates(["building_id", "capture_id"], keep="last")
+    cc = cc[["building_id", "capture_id", "cars", "quality_flag"]]
     leases = pd.read_csv(REAL_DIR / "costar_leases.csv", parse_dates=["start_date", "expiry_date"])
 
     imaged = set(cc.building_id)

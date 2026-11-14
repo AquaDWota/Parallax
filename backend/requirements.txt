@@ -12,3 +12,5 @@ pillow>=10
 deepagents>=0.7
 langchain-anthropic>=0.3
 pytest>=8
+# open-source car detector (scripts.batch_yolo_counts); AGPL-3.0 - check before any public release
+ultralytics>=8.3

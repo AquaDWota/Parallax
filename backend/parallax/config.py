@@ -27,7 +27,10 @@ def _load_env(path: Path) -> None:
 _load_env(ENV_PATH)
 DATA_DIR = Path(os.environ.get("PARALLAX_DATA_DIR", REPO_ROOT / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / f"parallax_{os.environ.get('PARALLAX_DATA_MODE', 'synthetic')}.duckdb"
+# Which detector's counts real mode uses: car_counts.csv (Vexcel sam3, default) or car_counts_yolo.csv.
+CAR_COUNTS_FILE = os.environ.get("PARALLAX_CAR_COUNTS", "car_counts.csv")
+_db_tag = "" if CAR_COUNTS_FILE == "car_counts.csv" else "_" + Path(CAR_COUNTS_FILE).stem
+DB_PATH = DATA_DIR / f"parallax_{os.environ.get('PARALLAX_DATA_MODE', 'synthetic')}{_db_tag}.duckdb"
 
 DATA_MODE = os.environ.get("PARALLAX_DATA_MODE", "synthetic")
 MODEL = os.environ.get("PARALLAX_MODEL", "anthropic:claude-sonnet-5-5")
