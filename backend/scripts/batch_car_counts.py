@@ -130,6 +130,11 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     hard_m2 = (float(hard) * 0.0929) if hard else None  # imperial sq ft -> m^2
     cap_area = min(hard_m2, lot_m2) if hard_m2 else lot_m2 * 0.7
     capacity = max(10, int(cap_area / SQM_PER_STALL))
+    try:  # CoStar's surface stall count beats the area estimate
+        if b.get("surface_spaces") and float(b["surface_spaces"]) >= 10:
+            capacity = int(float(b["surface_spaces"]))
+    except ValueError:
+        pass
     _append(F_BLD, BLD_COLS, [dict(building_id=b["building_id"], name=b.get("name", ""), city=b["city"],
                                    area=b.get("area", ""), lat=round(lat, 6), lon=round(lon, 6),
                                    lot_area_m2=round(lot_m2), hardscape_m2=round(hard_m2) if hard_m2 else "",
