@@ -4,14 +4,27 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-except ImportError:  # dotenv is optional
-    pass
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
+ENV_PATH = REPO_ROOT / ".env"
+
+
+def _load_env(path: Path) -> None:
+    """Minimal .env loader (no dependency). Fills variables that are unset OR empty in the shell."""
+    if not path.exists():
+        return
+    for raw in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[7:]
+        k, v = line.split("=", 1)
+        k, v = k.strip(), v.strip().strip('"').strip("'")
+        if v and not os.environ.get(k):
+            os.environ[k] = v
+
+
+_load_env(ENV_PATH)
 DATA_DIR = Path(os.environ.get("PARALLAX_DATA_DIR", REPO_ROOT / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "parallax.duckdb"
