@@ -93,11 +93,15 @@ def building(building_id: str):
 
 @app.get("/api/buildings/{building_id}/image")
 def building_image(building_id: str, capture_id: str):
-    """Real Vexcel crop if it has been fetched (data/imagery/<id>/<capture>.jpg), else a
-    schematic lot drawn from the car count so the demo works on synthetic data."""
-    real = config.DATA_DIR / "imagery" / building_id / f"{capture_id}.jpg"
-    if real.exists():
-        return FileResponse(real, media_type="image/jpeg")
+    """Real Vexcel crop of the lot for this capture. Served from data/imagery/ when cached; in real mode a
+    cache miss is fetched from Vexcel on the spot (key stays here). Falls back to a schematic lot drawn
+    from the car count, so the page never shows a broken image."""
+    from parallax import imagery
+    path = imagery.cached(building_id, capture_id)
+    if path is None and imagery.can_fetch():
+        path = imagery.fetch(building_id, capture_id)
+    if path is not None:
+        return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "max-age=86400"})
     s = get_store()
     b = s.buildings[s.buildings.building_id == building_id]
     cc = s.car_counts[(s.car_counts.building_id == building_id) & (s.car_counts.capture_id == capture_id)]
@@ -105,6 +109,13 @@ def building_image(building_id: str, capture_id: str):
         raise HTTPException(404, "no capture")
     return Response(_lot_svg(int(b.iloc[0].stall_capacity), cc.iloc[0].cars, cc.iloc[0].quality_flag,
                              f"{building_id}{capture_id}"), media_type="image/svg+xml")
+
+
+@app.get("/api/imagery/status")
+def imagery_status():
+    from parallax import imagery
+    n = sum(1 for _ in imagery.IMG_DIR.glob("*/*.jpg")) if imagery.IMG_DIR.exists() else 0
+    return {"cached_images": n, "can_fetch": imagery.can_fetch()}
 
 
 def _lot_svg(capacity: int, cars, flag: str, seed: str) -> str:

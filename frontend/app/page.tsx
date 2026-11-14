@@ -21,6 +21,9 @@ export default function Page() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    // ?b=<building id> opens that building (handy for demo links)
+    const b = new URLSearchParams(window.location.search).get("b");
+    if (b) api.building(b).then((x) => { setCity(x.city); setSelected(b); }).catch(() => {});
     api.meta().then((m) => {
       setMeta(m);
       const pre = m.periods.filter((p) => p < "2020");

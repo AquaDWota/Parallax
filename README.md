@@ -99,7 +99,14 @@ python -m scripts.batch_car_counts --buildings ../data/real/costar_buildings.csv
 # 3. build and serve
 PARALLAX_DATA_MODE=real python -m scripts.build
 PARALLAX_DATA_MODE=real uvicorn api.main:app --port 8000
+# 4. (optional, for an offline-proof demo) prefetch real lot images, with detected cars boxed
+python -m scripts.fetch_images --boxes
 ```
+
+Lot images: the building panel shows the real Vexcel crop of the lot for each capture. In real mode the
+API fetches a missing image from Vexcel the first time it's opened and caches it in `data/imagery/`;
+`scripts.fetch_images` fills the cache ahead of time. Open a building directly with `?b=<building_id>`,
+e.g. `http://localhost:3000/?b=P240089`.
 
 What real mode changes: captures are Vexcel collections (~1 a year 2016-2026), compared with peers
 in the same city and campaign year; baseline is 2016 to Feb 2020; lots with a baseline under 8 cars are
