@@ -1,19 +1,20 @@
-# secrets
-.env
-.env.*
-!.env.example
-# data (licensed for the event only - never commit)
-data/*
-!data/.gitkeep
-vexcel_output/
-*.duckdb
-*.parquet
-# python
+# Python-generated files
 __pycache__/
-*.pyc
-.venv/
-.pytest_cache/
-# node
-node_modules/
-.next/
-out/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+
+# Local frontend runtime and generated dependencies
+.tools/
+frontend/node_modules/
+frontend/.next/
+
+# Private concept-review PDF and its intermediate transcript/render files
+/output/pdf/lease-analysis-complete-report.pdf
+/tmp/pdfs/
