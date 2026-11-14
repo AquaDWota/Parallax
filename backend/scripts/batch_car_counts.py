@@ -199,9 +199,10 @@ def main():
     ap.add_argument("--city", default="Houston")
     ap.add_argument("--area", default="", help="label, e.g. Westchase (used as submarket)")
     ap.add_argument("--min-sqft", type=float, default=15000, help="discover: min building footprint")
-    ap.add_argument("--limit", type=int, default=60)
+    ap.add_argument("--limit", type=int, default=0, help="max buildings (0 = all)")
     ap.add_argument("--workers", type=int, default=3, help="parallel buildings (watch for 429s)")
     ap.add_argument("--no-precheck", action="store_true", help="count every capture even if the newest lot is empty")
+    ap.add_argument("--redo", action="store_true", help="re-count buildings already done (the newest result wins)")
     a = ap.parse_args()
     global PRECHECK
     PRECHECK = not a.no_precheck
@@ -209,7 +210,8 @@ def main():
     c = VexcelClient()
     if a.buildings:
         with open(a.buildings, newline="") as fh:
-            todo = [dict(r, city=r.get("city") or a.city, area=r.get("area") or a.area) for r in csv.DictReader(fh)][: a.limit]
+            todo = [dict(r, city=r.get("city") or a.city, area=r.get("area") or a.area) for r in csv.DictReader(fh)]
+            todo = todo[: a.limit] if a.limit else todo
     elif a.discover:
         lat, lon = map(float, a.discover.split(","))
         print(f"discovering buildings >= {a.min_sqft:,.0f} sq ft within {a.radius} m of {lat},{lon} ...")
@@ -220,7 +222,7 @@ def main():
     else:
         ap.error("give --buildings or --discover")
 
-    done = {r["building_id"] for r in _read(F_CC)}
+    done = set() if a.redo else {r["building_id"] for r in _read(F_CC)}
     known = {(r["city"], r["capture_id"]) for r in _read(F_CAP)}
     todo = [b for b in todo if b["building_id"] not in done]
     print(f"{len(todo)} buildings to process ({len(done)} already done), {a.workers} at a time")
