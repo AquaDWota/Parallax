@@ -82,11 +82,12 @@ def lead_time(city: Optional[str] = None, property_type: Optional[str] = None,
               building_class: Optional[str] = None, tenant_industry: Optional[str] = None,
               submarket: Optional[str] = None, exclude_covid: bool = False,
               min_lease_share: Optional[float] = None) -> str:
-    """Repeat the regression with usage measured 0-12, 6-18, 12-24 and 18-30 months before
+    """Repeat the regression with usage measured in windows ending 0, 6/12, ... months before
     expiry. The window with the best out-of-sample AUC says how far ahead the signal works."""
     by_lead = {}
     f = {}
-    for L in (0, 6, 12, 18):
+    from . import config
+    for L in config.LEAD_TIMES_MONTHS:
         ev, _, f = _slice(city, property_type, building_class, tenant_industry, submarket,
                           exclude_covid, min_lease_share, lead_months=L)
         by_lead[L] = ev

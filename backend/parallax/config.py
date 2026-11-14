@@ -27,7 +27,7 @@ def _load_env(path: Path) -> None:
 _load_env(ENV_PATH)
 DATA_DIR = Path(os.environ.get("PARALLAX_DATA_DIR", REPO_ROOT / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / "parallax.duckdb"
+DB_PATH = DATA_DIR / f"parallax_{os.environ.get('PARALLAX_DATA_MODE', 'synthetic')}.duckdb"
 
 DATA_MODE = os.environ.get("PARALLAX_DATA_MODE", "synthetic")
 MODEL = os.environ.get("PARALLAX_MODEL", "anthropic:claude-sonnet-5-5")
@@ -39,6 +39,13 @@ PEER_RADIUS_KM = 2.0
 # so real mode uses a wider pre-COVID baseline and wider predictor windows.
 REAL = DATA_MODE == "real"
 BASELINE_YEARS = (2016, 2019) if REAL else (2018, 2019)
+# Baseline = captures in [start, end). Real Houston has a Feb 2020 capture that is pre-COVID.
+BASELINE_RANGE = ("2016-01-01", "2020-03-01") if REAL else ("2018-01-01", "2020-01-01")
+# Real data: neighbours of unknown type (discovered parcels) count as peers, so compare across types.
+PEER_BY_TYPE = not REAL
+# Real data: small lots make the index jumpy - require a baseline of at least this many cars.
+MIN_BASELINE_CARS = 8 if REAL else 0
+INDEX_CAP = 300.0
 DROP_THRESHOLD = 85.0          # index below this counts as a drop
 DROP_MIN_CAPTURES = 2          # ... only if it persists this many captures
 SQM_PER_STALL = 30.0

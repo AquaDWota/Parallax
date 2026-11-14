@@ -32,11 +32,13 @@ export default function Stalls({ periods, index, onChange, summary }: {
 
   const p = periods[index] ?? "";
   const [y, m] = p.split("-");
+  const label = (per: string) => (per.length === 4 ? per : `${MONTH[per.slice(5)] ?? ""} ${per.slice(0, 4)}`);
+  const isCovid = (per: string) => per.slice(0, 4) === "2020" || per.slice(0, 4) === "2021";
 
   return (
     <div className="stalls">
       <div className="stall-caption">
-        <strong>{MONTH[m] ?? m} {y}</strong>
+        <strong>{m ? `${MONTH[m] ?? m} ${y}` : y}</strong>
         <span>{summary}</span>
         <button
           className="play"
@@ -46,7 +48,7 @@ export default function Stalls({ periods, index, onChange, summary }: {
             setPlaying(!playing);
           }}
         >
-          {playing ? "Pause" : "Play 2018 to 2026"}
+          {playing ? "Pause" : `Play ${periods[0]?.slice(0, 4)} to ${periods[periods.length - 1]?.slice(0, 4)}`}
         </button>
       </div>
       <div
@@ -59,7 +61,7 @@ export default function Stalls({ periods, index, onChange, summary }: {
         }}
       >
         {periods.map((per, i) => {
-          const covid = per >= "2020-03" && per <= "2021-09";
+          const covid = isCovid(per);
           return (
             <button
               key={per}
@@ -68,7 +70,7 @@ export default function Stalls({ periods, index, onChange, summary }: {
               role="radio"
               aria-checked={i === index}
               aria-pressed={i === index}
-              aria-label={`${MONTH[per.slice(5)]} ${per.slice(0, 4)}`}
+              aria-label={label(per)}
               tabIndex={i === index ? 0 : -1}
               onClick={() => onChange(i)}
             >
@@ -80,7 +82,7 @@ export default function Stalls({ periods, index, onChange, summary }: {
       </div>
       <div className="stall-labels" aria-hidden>
         {periods.map((per) => (
-          <span key={per}>{per.endsWith("03") ? `'${per.slice(2, 4)}` : ""}</span>
+          <span key={per}>{per.length === 4 || per.endsWith("03") ? `'${per.slice(2, 4)}` : ""}</span>
         ))}
       </div>
     </div>

@@ -21,7 +21,11 @@ export default function Page() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.meta().then((m) => { setMeta(m); setPi(Math.max(0, m.periods.indexOf("2019-09"))); })
+    api.meta().then((m) => {
+      setMeta(m);
+      const pre = m.periods.filter((p) => p < "2020");
+      setPi(Math.max(0, m.periods.indexOf(pre[pre.length - 1] ?? m.periods[0])));
+    })
       .catch(() => setLoadError("Can't reach the API on port 8000. Start it with: cd backend && uvicorn api.main:app --port 8000"));
     api.overview().then((o) => setResults({ bins: o.bins, regression: o.regression, regional: o.regional })).catch(() => {});
   }, []);
@@ -36,7 +40,7 @@ export default function Page() {
     const m = buildings.filter((b) => b.abs_index != null);
     if (!m.length) return "";
     const med = [...m].sort((a, b) => a.abs_index! - b.abs_index!)[Math.floor(m.length / 2)].abs_index!;
-    return `${m.length} lots measured, median fill ${med.toFixed(0)}% of 2018-19`;
+    return `${m.length} lots measured, median fill ${med.toFixed(0)}% of pre-COVID`;
   }, [buildings]);
 
   const onEvent = useCallback((e: AgentEvent) => {
@@ -91,8 +95,8 @@ export default function Page() {
     <div className="shell">
       <header className="topbar">
         <h1 className="wordmark">Parallax</h1>
-        <p className="thesis">Does an emptying parking lot predict a tenant leaving? Every surface-lot building in Houston and LA, 2018 to 2026.</p>
-        {meta && <span className="mode">{meta.data_mode === "synthetic" ? "Synthetic data" : "Live data"}, {meta.agent_mode === "llm" ? "LLM planner" : "scripted planner"}</span>}
+        <p className="thesis">Does an emptying parking lot predict a tenant leaving? Surface-lot buildings in Houston and LA, from Vexcel aerial captures and CoStar tenancies.</p>
+        {meta && <span className="mode">{meta.data_mode === "synthetic" ? "Synthetic data" : "Real Vexcel + CoStar data"}, {meta.agent_mode === "llm" ? "LLM planner" : "scripted planner"}</span>}
       </header>
 
       <main className="grid">
@@ -109,7 +113,7 @@ export default function Page() {
             {loadError ? <p style={{ padding: "1rem 1.25rem" }}>{loadError}</p> :
               <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} />}
             <div className="legend" aria-hidden>
-              Lot fill, % of its 2018-19 level
+              Lot fill, % of its pre-COVID level
               <div className="ramp">{[50, 65, 80, 92, 100, 108, 120, 135, 150].map((v) => <span key={v} style={{ background: usageColor(v) }} />)}</div>
               <div className="ends"><span>50</span><span>100</span><span>150</span></div>
               <div style={{ marginTop: 4, color: "var(--asphalt-2)" }}>Hollow: garage, not measurable</div>

@@ -58,7 +58,7 @@ export default function MapView({ city, buildings, selected, onSelect }: {
               <br />
               {garage ? "Garage parking: not measurable from above" :
                 b.abs_index == null ? `No usable capture (${b.status.replace("_", " ")})` :
-                `Lot ${b.abs_index.toFixed(0)}% as full as in 2018-19` +
+                `Lot ${b.abs_index.toFixed(0)}% as full as before COVID` +
                 (b.index != null ? `; ${b.index.toFixed(0)} vs. neighbours` : "")}
             </Tooltip>
           </CircleMarker>

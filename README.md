@@ -87,3 +87,21 @@ frontend/            Next.js: map + capture "stalls" slider | agent reasoning | 
 The pipeline recovers the planted signal and shows a story worth checking on real data: the link
 is driven by tenants that lease a large share of their building. A tenant leasing <10% of a
 building barely moves its lot.
+
+## Real data (Vexcel + CoStar)
+
+```bash
+cd backend
+# 1. CoStar kit files -> data/real/ : location-occupancy.jsonl, company-detail.jsonl, commercial-property.jsonl
+python -m scripts.prepare_costar          # -> costar_properties.csv, costar_leases.csv, costar_buildings.csv
+# 2. car counts per building per Vexcel collection (run on your laptop; resumable)
+python -m scripts.batch_car_counts --buildings ../data/real/costar_buildings.csv --limit 400 --workers 4
+# 3. build and serve
+PARALLAX_DATA_MODE=real python -m scripts.build
+PARALLAX_DATA_MODE=real uvicorn api.main:app --port 8000
+```
+
+What real mode changes: captures are Vexcel collections (~1 a year 2016-2026), compared with peers
+in the same city and campaign year; baseline is 2016 to Feb 2020; lots with a baseline under 8 cars are
+dropped; garage buildings (from CoStar parking, or an empty newest lot) are excluded; lease outcomes
+come from CoStar `expirationReason` (7/12 renewal, 8 shed space, 1/4/10/... moved out).

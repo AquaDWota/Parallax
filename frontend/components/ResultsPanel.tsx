@@ -135,7 +135,7 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
               <button type="button" aria-pressed={metric === "usage_index"} onClick={() => setMetric("usage_index")}>Parking usage</button>
               <button type="button" aria-pressed={metric === "renewal_rate"} onClick={() => setMetric("renewal_rate")}>Renewal rate</button>
             </div>
-            <p className="sub">{metric === "usage_index" ? "Average lot fill as % of 2018-19, weighted by building size. Shaded: 2020-21." : "Share of expiring tenants that kept all their space, per half-year."}</p>
+            <p className="sub">{metric === "usage_index" ? "Average lot fill as % of pre-COVID, weighted by building size. Shaded: 2020-21." : "Share of expiring tenants that kept all their space, per half-year."}</p>
             <RegionalChart series={r.regional.series} metric={metric} />
           </section>
         )}

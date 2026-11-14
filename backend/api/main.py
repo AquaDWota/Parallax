@@ -20,8 +20,17 @@ app = FastAPI(title="Parallax")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
-def _period(capture_id: str) -> str:  # "HOU-2020-03" -> "2020-03"
-    return capture_id.split("-", 1)[1]
+@lru_cache(maxsize=1)
+def _period_map() -> dict:
+    """capture_id -> slider period: "2020-03" for synthetic captures, campaign year for real Vexcel ones."""
+    c = get_store().captures
+    if "period" in c.columns:
+        return dict(zip(c.capture_id, c.period.astype(str)))
+    return {cid: cid.split("-", 1)[1] for cid in c.capture_id}
+
+
+def _period(capture_id: str) -> str:
+    return _period_map().get(capture_id, "")
 
 
 @app.get("/api/health")
@@ -32,7 +41,7 @@ def health():
 @app.get("/api/meta")
 def meta():
     s = get_store()
-    periods = sorted({_period(c) for c in s.captures.capture_id})
+    periods = sorted({p for p in (_period(c) for c in s.captures.capture_id) if p})
     return dict(data_mode=config.DATA_MODE, agent_mode="llm" if agent.use_llm() else "scripted",
                 cities=sorted(s.buildings.city.unique()), periods=periods,
                 n_buildings=int(len(s.buildings)),
@@ -42,7 +51,10 @@ def meta():
 @lru_cache(maxsize=64)
 def _buildings_at(period: str, city: str | None) -> list[dict]:
     s = get_store()
-    u = s.usage[s.usage.capture_id.map(_period) == period][["building_id", "index_smooth", "abs_index_smooth", "status", "cars"]]
+    u = s.usage[s.usage.capture_id.map(_period) == period].sort_values("capture_date")
+    # several collections can fall in one campaign year: prefer the latest usable one
+    u = u.assign(_ok=u.status.eq("ok")).sort_values(["_ok", "capture_date"]).drop_duplicates("building_id", keep="last")
+    u = u[["building_id", "index_smooth", "abs_index_smooth", "status", "cars"]]
     b = s.buildings if not city else s.buildings[s.buildings.city == city]
     m = b.merge(u, on="building_id", how="left")
     out = []

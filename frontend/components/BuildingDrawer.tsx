@@ -49,7 +49,7 @@ export default function BuildingDrawer({ id, onClose }: { id: string; onClose: (
       )}
 
       {!garage && <Spark history={b.history} leases={b.leases} />}
-      {!garage && <p className="sub">Usage vs. neighbours as % of the 2018-19 level. Red lines: a tenant left or shrank. Blue: renewed.</p>}
+      {!garage && <p className="sub">Usage vs. neighbours as % of the pre-COVID level. Red lines: a tenant left or shrank. Blue: renewed.</p>}
 
       <table className="leases">
         <thead><tr><th>Tenant</th><th>Sq ft</th><th>Expiry</th><th>Outcome</th></tr></thead>

@@ -42,7 +42,7 @@ export function BinsChart({ bins, onPick }: { bins: Bin[]; onPick?: (b: Bin) => 
         );
       })}
       <text x={left + (W - left) / 2} y={H - 6} textAnchor="middle">
-        Parking usage in the 12 months before expiry (median, % of 2018-19 level)
+        Parking usage before expiry (median, % of pre-COVID level)
       </text>
     </svg>
   );
