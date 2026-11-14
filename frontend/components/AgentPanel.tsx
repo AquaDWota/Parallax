@@ -4,6 +4,7 @@ import type { AgentEvent } from "@/lib/api";
 
 const SUGGESTIONS = [
   "Does parking track building occupancy?",
+  "Which buildings are leased but empty?",
   "Does a sharp drop in parking come before occupancy falls?",
   "Does parking track occupancy for offices in Houston?",
   "Does parking usage predict lease renewals?",
@@ -26,6 +27,7 @@ const TOOL_LABEL: Record<string, string> = {
   example_buildings: "pulled example buildings",
   submarket_context: "pulled submarket context",
   occupancy_link: "compared lot usage with CoStar occupancy, building by building",
+  shadow_vacancy_screen: "ranked buildings by leased vs used",
   occupancy_lead_lag: "checked timing: occupancy before, at and after each capture",
   occupancy_after_drop: "followed occupancy after sharp lot drops",
   occupancy_by_group: "split the link by group",
@@ -52,8 +54,8 @@ function Note({ md }: { md: string }) {
 
 function describeArgs(args: Record<string, unknown>) {
   const parts = Object.entries(args)
-    .filter(([k]) => k !== "include_noise_test")
-    .map(([k, v]) => (k === "min_lease_share" ? `tenants ${Math.round(Number(v) * 100)}%+ of building` :
+    .filter(([k]) => !["include_noise_test", "limit", "n"].includes(k))
+    .map(([k, v]) => (k === "watch_only" ? "watchlist only" : k === "min_lease_share" ? `tenants ${Math.round(Number(v) * 100)}%+ of building` :
       k === "by" ? `by ${String(v).replace("_", " ")}` : k === "exclude_covid" ? "without 2020-21" : String(v)));
   return parts.length ? ` (${parts.join(", ")})` : "";
 }

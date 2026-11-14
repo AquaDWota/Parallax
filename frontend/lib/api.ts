@@ -53,6 +53,7 @@ export const api = {
     fetch(`/api/buildings?period=${period}${city ? `&city=${encodeURIComponent(city)}` : ""}`).then(j<Building[]>),
   building: (id: string) => fetch(`/api/buildings/${id}`).then(j<any>),
   overview: () => fetch("/api/results/overview").then(j<any>),
+  screen: () => fetch("/api/screen?limit=500").then(j<any>),
   tool: (name: string, args: Record<string, unknown>) =>
     fetch(`/api/tools/${name}`, {
       method: "POST",

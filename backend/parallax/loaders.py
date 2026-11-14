@@ -120,3 +120,14 @@ def load_tenancies(building_ids) -> pd.DataFrame:
     t = pd.read_csv(REAL_DIR / "costar_occupancy.csv", parse_dates=["from_date", "to_date"])
     t = t[t.building_id.isin(set(building_ids))]
     return t[["building_id", "from_date", "to_date", "sqft"]].reset_index(drop=True)
+
+
+def load_upcoming(building_ids) -> pd.DataFrame:
+    """Current CoStar leases expiring after today (for the renewal-risk column of the screen)."""
+    f = REAL_DIR / "costar_upcoming.csv"
+    if not f.exists():
+        return pd.DataFrame(columns=["building_id", "tenant", "tenant_industry", "sqft", "expiry_date"])
+    t = pd.read_csv(f, parse_dates=["expiry_date"])
+    t = t[t.building_id.isin(set(building_ids))].copy()
+    t["tenant_industry"] = pd.to_numeric(t.tenant_industry, errors="coerce").map(INDUSTRY).fillna("unknown")
+    return t.reset_index(drop=True)

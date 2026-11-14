@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { Bin } from "@/lib/api";
 import { pct } from "@/lib/api";
 import { BinsChart, LeadChart, OccBinsChart, OffsetChart, RegionalChart } from "./charts";
+import Watchlist from "./Watchlist";
 
 export type Results = {
   occLink?: any;
@@ -31,10 +32,13 @@ function sliceLabel(f: Record<string, any> | undefined) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
+export default function ResultsPanel({ r, onPickBin, onPickBuilding, view, setView, screen }: {
   r: Results;
   onPickBin: (b: Bin, filters: Record<string, any>) => void;
   onPickBuilding: (id: string) => void;
+  view: "study" | "watchlist";
+  setView: (v: "study" | "watchlist") => void;
+  screen: any;
 }) {
   const [metric, setMetric] = useState<"usage_index" | "renewal_rate">("usage_index");
   const bins = r.bins;
@@ -43,8 +47,15 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
 
   return (
     <>
-      <div className="col-head"><h2>Results</h2></div>
+      <div className="col-head">
+        <h2>{view === "watchlist" ? "Lender watchlist" : "Results"}</h2>
+        <div className="viewtabs" role="group" aria-label="Results view">
+          <button type="button" aria-pressed={view === "study"} onClick={() => setView("study")}>Study</button>
+          <button type="button" aria-pressed={view === "watchlist"} onClick={() => setView("watchlist")}>Watchlist</button>
+        </div>
+      </div>
       <div className="col-body">
+        {view === "watchlist" ? <Watchlist data={screen} onPick={onPickBuilding} /> : <>
         {r.occLink?.bins?.length > 0 && (
           <section className="result">
             <h3>Parking tracks occupancy</h3>
@@ -199,6 +210,7 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
             <RegionalChart series={r.regional.series} metric={metric} />
           </section>
         )}
+      </>}
       </div>
     </>
   );

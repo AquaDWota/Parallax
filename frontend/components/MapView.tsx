@@ -18,11 +18,12 @@ function Recenter({ city }: { city: string }) {
   return null;
 }
 
-export default function MapView({ city, buildings, selected, onSelect }: {
+export default function MapView({ city, buildings, selected, onSelect, watch }: {
   city: string;
   buildings: Building[];
   selected: string | null;
   onSelect: (id: string) => void;
+  watch?: Set<string>;
 }) {
   const c = CENTERS[city] ?? CENTERS.Houston;
   return (
@@ -38,14 +39,15 @@ export default function MapView({ city, buildings, selected, onSelect }: {
       {buildings.map((b) => {
         const garage = b.parking !== "surface";
         const sel = b.id === selected;
+        const onWatch = !!watch?.has(b.id);
         return (
           <CircleMarker
             key={b.id}
             center={[b.lat, b.lon]}
-            radius={sel ? 9 : garage ? 3 : 5}
+            radius={sel ? 9 : onWatch ? 7 : garage ? 3 : 5}
             pathOptions={{
-              color: sel ? "#2b2f33" : garage ? "#8d969b" : "rgba(43,47,51,0.35)",
-              weight: sel ? 3 : 1,
+              color: sel ? "#2b2f33" : onWatch ? "#9b3b2f" : garage ? "#8d969b" : "rgba(43,47,51,0.35)",
+              weight: sel ? 3 : onWatch ? 2.5 : 1,
               fillColor: garage ? "transparent" : usageColor(b.abs_index),
               fillOpacity: garage ? 0 : 0.92,
             }}
@@ -54,7 +56,7 @@ export default function MapView({ city, buildings, selected, onSelect }: {
             <Tooltip direction="top" offset={[0, -4]}>
               <strong>{b.name}</strong>
               <br />
-              {b.submarket}, {b.type}, Class {b.cls}
+              {b.submarket}, {b.type}, Class {b.cls}{onWatch ? " (on the lender watchlist)" : ""}
               <br />
               {garage ? "Garage parking: not measurable from above" :
                 b.abs_index == null ? `No usable capture (${b.status.replace("_", " ")})` :

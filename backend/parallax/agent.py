@@ -21,7 +21,7 @@ import re
 from typing import AsyncIterator
 
 from . import config
-from .tools import (ALL_TOOLS, TOOLS_BY_NAME, build_lease_events, compare_groups, example_buildings,
+from .tools import (ALL_TOOLS, TOOLS_BY_NAME, shadow_vacancy_screen, build_lease_events, compare_groups, example_buildings,
                     imagery_quality, lead_time, occupancy_after_drop, occupancy_by_group, occupancy_lead_lag,
                     occupancy_link, regional_series, regression, run_sql, submarket_context, usage_vs_renewal,
                     validate)
@@ -34,6 +34,8 @@ You study how parking-lot usage (car counts from Vexcel aerial imagery, about on
      drop come before occupancy falls? (occupancy_* tools)
   2. Secondary: does usage before a lease expires predict whether that tenant renews? (lease tools)
      Most CoStar tenants are small (<10% of their building), so expect a weak lease-level signal.
+  3. Product: the lender risk screen (shadow_vacancy_screen) - buildings leased on paper but empty in the lot,
+     with lease rollover in the next 24 months. Use it for "which buildings", "watchlist", "risk" questions.
 Buildings with structured/underground parking can't be measured from above and are excluded.
 
 How to work:
@@ -69,9 +71,10 @@ SUBAGENTS = [
          system_prompt="Answer with the imagery tools. Always report what was dropped (cloud, shadow, garages) and why.",
          tools=[regional_series, imagery_quality, example_buildings]),
     dict(name="market-analyst",
-         description="CoStar submarket context: vacancy proxies, rents, renewal rates by submarket.",
-         system_prompt="Give submarket context with submarket_context. Keep it to the few submarkets that matter.",
-         tools=[submarket_context, run_sql]),
+         description="CoStar submarket context and the lender risk screen (leased vs used, rollover ahead).",
+         system_prompt="Give submarket context with submarket_context, and building-level risk with "
+                       "shadow_vacancy_screen. Keep it to the few buildings or submarkets that matter.",
+         tools=[shadow_vacancy_screen, submarket_context, run_sql]),
 ]
 
 
@@ -177,6 +180,8 @@ def parse_filters(q: str) -> dict:
 
 def _intent(q: str) -> str:
     ql = q.lower()
+    if re.search(r"watch ?list|risk|lender|which buildings|shadow vacan|leased but|screen", ql):
+        return "screen"
     if re.search(r"renew|lease (expir|outcome)|tenant (leav|stay)", ql):
         return "full"
     if re.search(r"occupan|vacan|track|gauge|early warning|sharp drop|empt", ql):
@@ -225,6 +230,7 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
     intent = _intent(question)
     slice_name = _fmt_filters(f)
     plans = {
+        "screen": ["Rank buildings: leased vs used", "Biggest gaps and lease rollover", "Write note"],
         "occupancy": ["Parking vs occupancy (same building)", "Timing: before, at, after", "After a sharp drop",
                       "By property type", "Write note"],
         "full": ["Build lease-event table", "Renewal rate by usage level", "Regression with controls",
@@ -252,7 +258,7 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
         R[name if name not in R else f"{name}:{a.get('by', len(R))}"] = r["data"]
         return s, r
 
-    if intent not in ("regional", "occupancy"):
+    if intent not in ("regional", "occupancy", "screen"):
         yield plan(i)
         s, r = await run("build_lease_events", "lease-event-builder", **f)
         yield s
@@ -268,7 +274,10 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
         i += 1
 
     of = {k: v for k, v in f.items() if k in ("city", "property_type", "building_class")}
+    sf = {k: v for k, v in f.items() if k in ("city", "property_type")}
     steps = {
+        "screen": [("shadow_vacancy_screen", "market-analyst", {**sf, "limit": 15}),
+                   ("shadow_vacancy_screen", "market-analyst", {**sf, "watch_only": True, "limit": 10})],
         "occupancy": [("occupancy_link", "statistician", of), ("occupancy_lead_lag", "statistician", of),
                       ("occupancy_after_drop", "statistician", of),
                       ("occupancy_by_group", "statistician", {**{k: v for k, v in of.items() if k != "property_type"}, "by": "property_type"}),
@@ -289,13 +298,16 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
                      ("imagery_quality", "imagery-analyst", {"city": f.get("city")}),
                      ("submarket_context", "market-analyst", {"city": f.get("city")})],
     }[intent]
+    said = set()
     for name, agent, a in steps:
         yield plan(i)
         s, r = await run(name, agent, **a)
         yield s
         yield r
         for n in _self_check(name, r["data"]):
-            yield {"type": "note", "text": n}
+            if n not in said:
+                said.add(n)
+                yield {"type": "note", "text": n}
         i += 1
     yield plan(i)
     yield {"type": "final", "text": _write_note(question, slice_name, intent, R)}
@@ -304,6 +316,15 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
 
 def _self_check(name: str, d: dict) -> list[str]:
     out = []
+    if name == "shadow_vacancy_screen" and d.get("summary", {}).get("n"):
+        sm = d["summary"]
+        out.append(f"{sm['n_watch']} of {sm['n_clean']} buildings with clean records are leased within 5 points of "
+                   f"pre-COVID but their lots run under 70% of pre-COVID (median lot {sm['median_parking_now']:.0f}% "
+                   f"of pre-COVID; median leasing change {sm['median_leased_change']:+.0f} pts).")
+        flagged = sm["n"] - sm["n_clean"]
+        if flagged:
+            out.append(f"Set aside {flagged} buildings whose CoStar tenant history looks incomplete (occupancy near 0%, "
+                       f"over 100%, or jumping 40+ points).")
     if name == "occupancy_link":
         if "interpretation" in d:
             out.append(d["interpretation"])
@@ -360,6 +381,20 @@ def _self_check(name: str, d: dict) -> list[str]:
 
 def _write_note(q: str, slice_name: str, intent: str, R: dict) -> str:
     L = [f"### {q.strip()}", f"*Slice: {slice_name}.*", ""]
+    sc = [v for k, v in R.items() if k.startswith("shadow_vacancy_screen")]
+    if sc and sc[0].get("summary", {}).get("n"):
+        sm = sc[0]["summary"]
+        L.append(f"**Watchlist:** {sm['n_watch']} of {sm['n_clean']} buildings ({sm['share_watch']:.0%}) are leased on paper "
+                 f"but empty in the lot. Lots overall run at {sm['median_parking_now']:.0f}% of pre-COVID while recorded "
+                 f"occupancy changed {sm['median_leased_change']:+.0f} points.")
+        top = [r for r in sc[-1].get("rows", []) if r.get("watch")][:5]
+        if top:
+            L.append("**Top of the list:** " + "; ".join(
+                f"{r['name']} ({r['city']}, {r['property_type']}): {r['leased_now']:.0f}% leased, lot at {r['parking_now']:.0f}% "
+                f"of pre-COVID" + (f", {r['rollover_24m']:.0f}% of leased space expiring within 24 months" if r.get('rollover_24m') else "")
+                for r in top) + ".")
+        L.append("*Leased but unused space is the space most likely to go dark at renewal. Occupancy here is computed from "
+                 "CoStar tenancy records and is approximate.*")
     ol = R.get("occupancy_link", {})
     if "interpretation" in ol:
         pl = ol.get("placebo", {})

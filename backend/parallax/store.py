@@ -17,7 +17,7 @@ from . import config
 from .events import build_lease_events
 from .usage_index import compute_usage, regional_index
 
-TABLES = ["buildings", "captures", "car_counts", "leases", "usage", "tenancies"]
+TABLES = ["buildings", "captures", "car_counts", "leases", "usage", "tenancies", "upcoming"]
 
 
 @dataclass
@@ -28,7 +28,14 @@ class Store:
     leases: pd.DataFrame
     usage: pd.DataFrame
     tenancies: pd.DataFrame
+    upcoming: pd.DataFrame
     _events: dict = field(default_factory=dict)
+
+    def screen(self) -> pd.DataFrame:
+        if "screen" not in self._events:
+            from .screen import build_screen
+            self._events["screen"] = build_screen(self.buildings, self.usage, self.tenancies, self.upcoming)
+        return self._events["screen"]
 
     def occupancy_panel(self) -> pd.DataFrame:
         if "occ" not in self._events:
@@ -66,20 +73,25 @@ def build(mode: str = config.DATA_MODE) -> Store:
         d = generate()
         buildings, captures, car_counts, leases = d.buildings, d.captures, d.car_counts, d.leases
         tenancies = tenancies_from_leases(leases)
+        up = leases[leases.expiry_date > pd.Timestamp("2026-11-01")]
+        upcoming = pd.DataFrame(dict(building_id=up.building_id, tenant=up.tenant, tenant_industry=up.tenant_industry,
+                                     sqft=up.sqft, expiry_date=up.expiry_date))
     else:
         from .loaders import load_real, load_tenancies
         buildings, captures, car_counts, leases = load_real()
         tenancies = load_tenancies(buildings.building_id)
+        from .loaders import load_upcoming
+        upcoming = load_upcoming(buildings.building_id)
     usage = compute_usage(buildings, captures, car_counts)
     con = duckdb.connect(str(config.DB_PATH))
     for name, df in dict(buildings=buildings, captures=captures, car_counts=car_counts,
-                         leases=leases, usage=usage, tenancies=tenancies).items():
+                         leases=leases, usage=usage, tenancies=tenancies, upcoming=upcoming).items():
         con.register("tmp_df", df)
         con.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM tmp_df")
         con.unregister("tmp_df")
     con.close()
     get_store.cache_clear()
-    return Store(buildings, captures, car_counts, leases, usage, tenancies)
+    return Store(buildings, captures, car_counts, leases, usage, tenancies, upcoming)
 
 
 def _inputs_newer_than_db() -> bool:
@@ -88,7 +100,7 @@ def _inputs_newer_than_db() -> bool:
         return False
     db_time = config.DB_PATH.stat().st_mtime
     names = ["car_counts.csv", "captures.csv", "vexcel_buildings.csv", "costar_properties.csv",
-             "costar_leases.csv", "costar_occupancy.csv"]
+             "costar_leases.csv", "costar_occupancy.csv", "costar_upcoming.csv"]
     return any((config.DATA_DIR / "real" / n).exists() and (config.DATA_DIR / "real" / n).stat().st_mtime > db_time
                for n in names)
 
@@ -112,6 +124,7 @@ def get_store() -> Store:
         dfs["leases"][c] = pd.to_datetime(dfs["leases"][c])
     for c in ["from_date", "to_date"]:
         dfs["tenancies"][c] = pd.to_datetime(dfs["tenancies"][c])
+    dfs["upcoming"]["expiry_date"] = pd.to_datetime(dfs["upcoming"]["expiry_date"])
     return Store(**dfs)
 
 

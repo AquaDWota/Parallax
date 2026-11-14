@@ -262,6 +262,30 @@ def occupancy_by_group(by: str = "property_type", city: Optional[str] = None,
     return _json(dict(filters=f, **O.by_group(p, by)))
 
 
-ALL_TOOLS = [occupancy_link, occupancy_lead_lag, occupancy_after_drop, occupancy_by_group, build_lease_events, usage_vs_renewal, regression, lead_time, validate, compare_groups,
+# ---------------------------------------------------------------- lender risk screen
+def shadow_vacancy_screen(city: Optional[str] = None, property_type: Optional[str] = None,
+                          watch_only: bool = False, limit: int = 15) -> str:
+    """Lender risk screen: buildings leased on paper but empty in the lot. Per building: CoStar occupancy
+    before COVID and now, parking since 2023 as % of pre-COVID, the gap between the two (points), share of
+    leased sq ft expiring in the next 24 months, the biggest expiring tenants, and a watch flag (leased within
+    5 points of pre-COVID but parking under 70%). Ranked watch first, then by gap."""
+    from .screen import summary
+    d = get_store().screen()
+    if city:
+        d = d[d.city.str.lower() == city.lower()]
+    if property_type:
+        d = d[d.property_type.str.lower() == property_type.lower()]
+    summ = summary(d)
+    if watch_only:
+        d = d[d.watch]
+    cols = ["rank", "building_id", "name", "city", "submarket", "property_type", "building_class", "leased_pre",
+            "leased_now", "leased_change", "parking_now", "gap", "rollover_24m", "expiring_tenants", "watch",
+            "data_check", "n_recent", "lat", "lon"]
+    rows = d.head(int(limit))[cols].round(1).replace({np.nan: None}).to_dict("records") if len(d) else []
+    return _json(dict(filters={k: v for k, v in dict(city=city, property_type=property_type).items() if v},
+                      summary=summ, rows=rows))
+
+
+ALL_TOOLS = [shadow_vacancy_screen, occupancy_link, occupancy_lead_lag, occupancy_after_drop, occupancy_by_group, build_lease_events, usage_vs_renewal, regression, lead_time, validate, compare_groups,
              run_sql, regional_series, imagery_quality, example_buildings, submarket_context]
 TOOLS_BY_NAME = {t.__name__: t for t in ALL_TOOLS}

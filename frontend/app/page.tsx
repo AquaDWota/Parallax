@@ -19,6 +19,9 @@ export default function Page() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<Results>({});
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [view, setView] = useState<"study" | "watchlist">("study");
+  const [screen, setScreen] = useState<any>(null);
+  const watchIds = useMemo(() => new Set<string>((screen?.rows ?? []).filter((r: any) => r.watch).map((r: any) => r.building_id)), [screen]);
 
   useEffect(() => {
     // ?b=<building id> opens that building (handy for demo links)
@@ -30,6 +33,7 @@ export default function Page() {
       setPi(Math.max(0, m.periods.indexOf(pre[pre.length - 1] ?? m.periods[0])));
     })
       .catch(() => setLoadError("Can't reach the API on port 8000. Start it with: cd backend && uvicorn api.main:app --port 8000"));
+    api.screen().then(setScreen).catch(() => {});
     api.overview().then((o) => setResults({
       occLink: o.occ_link?.bins ? o.occ_link : undefined, occLead: o.occ_lead, occDrop: o.occ_drop,
       bins: o.bins, regression: o.regression, regional: o.regional,
@@ -59,6 +63,7 @@ export default function Page() {
     if (e.type === "result") {
       setResults((r) => {
         const d = e.data;
+        if (e.tool === "shadow_vacancy_screen") setView("watchlist");
         switch (e.tool) {
           case "occupancy_link": return d.bins ? { ...r, occLink: d } : r;
           case "occupancy_lead_lag": return { ...r, occLead: d };
@@ -121,12 +126,13 @@ export default function Page() {
           </div>
           <div className="mapwrap">
             {loadError ? <p style={{ padding: "1rem 1.25rem" }}>{loadError}</p> :
-              <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} />}
+              <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} watch={watchIds} />}
             <div className="legend" aria-hidden>
               Lot fill, % of its pre-COVID level
               <div className="ramp">{[50, 65, 80, 92, 100, 108, 120, 135, 150].map((v) => <span key={v} style={{ background: usageColor(v) }} />)}</div>
               <div className="ends"><span>50</span><span>100</span><span>150</span></div>
               <div style={{ marginTop: 4, color: "var(--asphalt-2)" }}>Hollow: garage, not measurable</div>
+              {watchIds.size > 0 && <div style={{ marginTop: 2, color: "var(--left)" }}>Red ring: on the lender watchlist</div>}
             </div>
             {selected && <BuildingDrawer id={selected} onClose={() => setSelected(null)} />}
           </div>
@@ -138,7 +144,7 @@ export default function Page() {
         </section>
 
         <section className="col" aria-label="Results">
-          <ResultsPanel r={results} onPickBin={pickBin} onPickBuilding={pickBuilding} />
+          <ResultsPanel r={results} onPickBin={pickBin} onPickBuilding={pickBuilding} view={view} setView={setView} screen={screen} />
         </section>
       </main>
     </div>

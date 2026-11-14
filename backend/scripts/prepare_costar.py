@@ -7,6 +7,7 @@ Inputs : data/real/location-occupancy.jsonl, data/real/company-detail.jsonl,
          data/real/commercial-property.jsonl (type, class, RBA, submarket, parking by type)
 Outputs: data/real/costar_properties.csv  one row per property with a location
          data/real/costar_occupancy.csv   every tenancy (from/to dates, sq ft) -> building occupancy over time
+         data/real/costar_upcoming.csv    current tenancies with a lease expiring after today (renewal risk ahead)
          data/real/costar_leases.csv      one row per lease expiry 2016-2026 with an inferred outcome
          data/real/costar_buildings.csv   properties ranked for imaging -> scripts.batch_car_counts --buildings
 
@@ -219,9 +220,24 @@ def main():
                         (o.get("toDate") or "")[:10], _sqft(o), o["expirationReason"]])
             n_occ += 1
 
+    n_up = 0
+    with open(REAL / "costar_upcoming.csv", "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["building_id", "tenant", "tenant_industry", "sqft", "expiry_date"])
+        for o in occ:
+            ld = o.get("leaseDeal") or {}
+            E = _d(ld.get("expirationDate"))
+            if o["propertyId"] not in props or o.get("toDate") or not E or E <= TODAY:
+                continue
+            c = company.get(o.get("tenantLocationId"), {})
+            prof = c.get("profile") or {}
+            w.writerow([f"P{o['propertyId']}", (prof.get("companyName") or c.get("name") or "Unknown tenant").strip(),
+                        prof.get("industryType", ""), _sqft(o), E.date().isoformat()])
+            n_up += 1
+
     oc = Counter(e["outcome"] for e in events)
     print(f"properties with location: {len(props):,}  ({Counter(p['city'] for p in props.values()).most_common(3)})")
-    print(f"tenancies written for occupancy: {n_occ:,}")
+    print(f"tenancies written for occupancy: {n_occ:,}; current leases expiring after today: {n_up:,}")
     print(f"lease expiries 2016-2026 with an outcome: {len(events):,}  {dict(oc)}")
     pt = Counter(attrs.get(p, blank)["parking_type"] for p in ev_by_prop)
     print(f"parking at properties with 2018+ expiries: {dict(pt)}")

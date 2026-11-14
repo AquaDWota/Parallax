@@ -227,3 +227,19 @@ button, input { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- watchlist ---------- */
+.screen { width: 100%; border-collapse: collapse; font-size: var(--s-1); }
+.screen th { text-align: left; font-weight: 600; padding: 0.35rem 0.4rem 0.35rem 0; border-bottom: 1px solid var(--concrete); }
+.screen th.num, .screen td.num { text-align: right; }
+.screen td { padding: 0.35rem 0.4rem 0.35rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.screen tbody tr { cursor: pointer; }
+.screen tbody tr:hover, .screen tbody tr:focus { background: #fff; outline: none; }
+.screen tr.watch td:first-child { box-shadow: inset 3px 0 0 var(--left); padding-left: 0.5rem; }
+.screen tr.check { color: var(--asphalt-2); }
+.screen .bname { display: block; font-weight: 600; }
+.screen .bmeta { display: block; color: var(--asphalt-2); font-size: 11px; }
+.screen td.strong { font-weight: 700; }
+.viewtabs { display: inline-flex; gap: 0.25rem; }
+.viewtabs button { border: 1px solid var(--rule); background: var(--panel); border-radius: 2px; padding: 0.2rem 0.7rem; cursor: pointer; font-size: var(--s-1); }
+.viewtabs button[aria-pressed="true"] { background: var(--asphalt); color: #fff; border-color: var(--asphalt); }

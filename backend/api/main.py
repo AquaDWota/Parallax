@@ -160,6 +160,13 @@ def overview():
     return _overview()
 
 
+@app.get("/api/screen")
+def screen(city: str | None = None, property_type: str | None = None, watch_only: bool = False, limit: int = 200):
+    """Lender risk screen: leased on paper vs used in the lot, ranked."""
+    return json.loads(TOOLS_BY_NAME["shadow_vacancy_screen"](city=city, property_type=property_type,
+                                                             watch_only=watch_only, limit=limit))
+
+
 class AskBody(BaseModel):
     question: str
     history: list[dict] | None = None
