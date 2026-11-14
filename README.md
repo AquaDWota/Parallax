@@ -71,7 +71,15 @@ backend/
   api/main.py        FastAPI: /api/meta, /api/buildings, /api/results/overview, /api/ask (SSE), /api/tools/{name}
   scripts/           build.py, probe_vexcel.py
 frontend/            Next.js: map + capture "stalls" slider | agent reasoning | results
+satellite/           why aerial, not satellite: Sentinel-2 tests (office lot, Houston Rodeo) + comparison image
 ```
+
+## Why aerial, not satellite
+
+Free satellite imagery (Sentinel-2, every ~5 days) would give far more frequent readings than Vexcel's ~1
+flight a year, so we tested it first. At 10 m a car is a tenth of a pixel: on 438 scenes of one office
+lot, full vs empty changes the lot's brightness by 1.8% against 10.3% everyday noise. Even NRG Park
+during the Houston Rodeo shows the tents, not the cars. Details and scripts: [satellite/](satellite/README.md).
 
 ## Two indexes, on purpose
 
