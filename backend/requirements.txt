@@ -1,0 +1,14 @@
+duckdb>=1.1
+pandas>=2.2
+numpy>=1.26
+statsmodels>=0.14
+scikit-learn>=1.5
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-dotenv>=1.0
+requests>=2.32
+shapely>=2.0
+pillow>=10
+deepagents>=0.7
+langchain-anthropic>=0.3
+pytest>=8

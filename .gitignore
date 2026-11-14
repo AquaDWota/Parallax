@@ -1,0 +1,19 @@
+# secrets
+.env
+.env.*
+!.env.example
+# data (licensed for the event only - never commit)
+data/*
+!data/.gitkeep
+vexcel_output/
+*.duckdb
+*.parquet
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+# node
+node_modules/
+.next/
+out/
