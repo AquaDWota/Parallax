@@ -42,7 +42,7 @@ export const PRELOAD_SCRIPT = `(function(){try{var s=JSON.parse(localStorage.get
 export type PanelSizes = { map: number; results: number; agent: number };
 export const DEFAULT_SIZES: PanelSizes = { map: 0.37, results: 0.30, agent: 0.33 };
 const SIZE_KEY = "parallax-panels";
-export const MIN_SHARE = 0.16;
+export const MIN_SHARE = 0.12;
 
 export function loadSizes(): PanelSizes {
   try {

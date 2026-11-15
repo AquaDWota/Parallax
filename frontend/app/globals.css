@@ -655,3 +655,7 @@ html[data-text="l"] { font-size: 18px; }
 .splitter:hover, .splitter:focus-visible { background: var(--paint); outline: none; }
 body.resizing { cursor: col-resize; user-select: none; }
 body.resizing .leaflet-container { pointer-events: none; }
+/* narrow panels: let contents shrink instead of spilling past the divider */
+.grid > .col { min-width: 0; overflow: hidden; }
+.ask input { min-width: 0; flex: 1 1 auto; }
+.ask button[type="submit"] { flex: none; }

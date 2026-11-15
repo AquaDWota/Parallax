@@ -48,7 +48,9 @@ export default function Page() {
   const resize = useCallback((left: keyof PanelSizes, right: keyof PanelSizes, dx: number) => {
     const w = gridRef.current?.clientWidth || window.innerWidth;
     setSizes((s) => {
-      const d = Math.max(MIN_SHARE - s[left], Math.min(s[right] - MIN_SHARE, dx / w));
+      // minimum enforced here in pixels (~240px), not by the grid: a grid minimum leaves an empty strip on the right
+      const min = Math.max(MIN_SHARE, Math.min(0.3, 240 / w));
+      const d = Math.max(Math.min(0, min - s[left]), Math.min(Math.max(0, s[right] - min), dx / w));
       const next = { ...s, [left]: s[left] + d, [right]: s[right] - d };
       saveSizes(next);
       return next;
@@ -196,7 +198,7 @@ export default function Page() {
       </header>
 
       <main className="grid" ref={gridRef}
-        style={{ gridTemplateColumns: order.map((k) => `minmax(260px, ${sizes[k]}fr)`).join(" 6px ") }}>
+        style={{ gridTemplateColumns: order.map((k) => `minmax(0, ${(sizes[k] * 100).toFixed(3)}fr)`).join(" 6px ") }}>
         {order.map((k, n) => [
           n > 0 && <Splitter key={`split-${k}`} label={`Resize ${order[n - 1]} and ${k} panels`}
             onDrag={(dx) => resize(order[n - 1], k, dx)} onReset={resetSizes} />,
