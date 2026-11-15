@@ -62,14 +62,15 @@ backend/
     synthetic.py     Houston + LA buildings, captures, car counts, leases (same schema as real)
     loaders.py       real CoStar + Vexcel loaders (TODO once we see the extract)
     vexcel.py        Vexcel API 2.0 client (parcel, collections, ortho, car detection, embeddings)
-    usage_index.py   fill rate -> peer-normalized -> % of 2018-19 baseline -> smoothed + drop flags
+    usage_index.py   fill rate -> off days dropped -> peer-normalized -> % of baseline -> smoothed + drop flags
+    photo_days.py    which day a photo was taken: workday / saturday / sunday / holiday
     events.py        lease-expiry table: outcome + usage before expiry + controls
     analysis.py      usage bins, logistic regression, lead time, OOS AUC, placebo, COVID, noise, subgroups
     tools.py         the agent's tools (JSON in/out, chart-ready)
     agent.py         deepagents planner + helper sub-agents; scripted fallback with the same events
     store.py         batch precompute into DuckDB
   api/main.py        FastAPI: /api/meta, /api/buildings, /api/results/overview, /api/ask (SSE), /api/tools/{name}
-  scripts/           build.py, probe_vexcel.py
+  scripts/           build.py, probe_vexcel.py, batch_car_counts.py, fetch_photo_dates.py, fetch_images.py
 frontend/            Next.js: map + capture "stalls" slider | agent reasoning | results
 ```
 
@@ -96,12 +97,29 @@ cd backend
 python -m scripts.prepare_costar          # -> costar_properties.csv, costar_leases.csv, costar_buildings.csv
 # 2. car counts per building per Vexcel collection (run on your laptop; resumable)
 python -m scripts.batch_car_counts --buildings ../data/real/costar_buildings.csv --limit 400 --workers 4
-# 3. build and serve
+# 3. exact day each photo was taken (~5 min, resumable) -> photo_dates.csv
+python -m scripts.fetch_photo_dates
+# 4. build and serve
 PARALLAX_DATA_MODE=real python -m scripts.build
 PARALLAX_DATA_MODE=real uvicorn api.main:app --port 8000
-# 4. (optional, for an offline-proof demo) prefetch real lot images, with detected cars boxed
+# 5. (optional, for an offline-proof demo) prefetch real lot images, with detected cars boxed
 python -m scripts.fetch_images --boxes
 ```
+
+All steps need `VEXCEL_API_KEY` in `.env` except 1 and 4. Steps 2 and 3 only need re-running for new
+buildings (both skip what's already done). After new car counts, re-run step 4 (~30 s). Don't skip
+step 3: without `photo_dates.csv` the build still works but silently falls back to the weaker
+neighbour-only off-day filter.
+
+Off days: a lot photographed on a Sunday or holiday looks empty without anyone leaving. Vexcel only
+gives each flight's date range, but its raw-photo search (`oriented/query`) gives the exact day every
+building was shot. On the real counts, Sundays show 0.69x a lot's usual cars and Jan 1 0.50x, while
+Saturdays (offices) and Dec 31 look normal. So the build drops Sunday and federal-holiday photos for
+every building, and Saturday photos for industrial and flex (`parallax/photo_days.py`). Flights whose
+photos span different kinds of day, or have no date, go through a neighbour check instead: a low lot is
+dropped only if the lots around it in the same flight were low too. `PARALLAX_CALENDAR=0` or
+`PARALLAX_OFF_DAY=0` turn the two filters off for comparison. With both on, the occupancy link is +2.93
+usage points per 10 points of occupancy (p=0.0002), up from +2.36 with the neighbour check alone.
 
 Lot images: the building panel shows the real Vexcel crop of the lot for each capture. In real mode the
 API fetches a missing image from Vexcel the first time it's opened and caches it in `data/imagery/`;

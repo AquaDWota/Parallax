@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from . import config
+from .photo_days import classify_str
 
 REAL_DIR = config.DATA_DIR / "real"
 
@@ -82,6 +83,14 @@ def load_real():
     car_counts = cc[cc.building_id.isin(buildings.building_id)][["building_id", "capture_id", "cars", "quality_flag"]].copy()
     car_counts["cars"] = pd.to_numeric(car_counts["cars"], errors="coerce")
     car_counts.loc[car_counts.quality_flag.isin(["no_image", "error"]), "quality_flag"] = "no_image"
+    # exact day each photo was taken (scripts.fetch_photo_dates) -> workday/saturday/sunday/holiday/mixed/unknown
+    pd_path = REAL_DIR / "photo_dates.csv"
+    if pd_path.exists():
+        pdts = pd.read_csv(pd_path).drop_duplicates(["building_id", "capture_id"], keep="last")
+        pdts["day_type"] = pdts["dates"].map(classify_str)
+        car_counts = car_counts.merge(pdts[["building_id", "capture_id", "dates", "day_type"]],
+                                      on=["building_id", "capture_id"], how="left")
+        car_counts["day_type"] = car_counts["day_type"].fillna("unknown")
     # a building whose newest lot was empty (batch pre-check) is treated like a garage building
     nm = set(car_counts.loc[car_counts.quality_flag == "not_measurable", "building_id"])
     buildings.loc[buildings.building_id.isin(nm), "parking_type"] = "structured"
