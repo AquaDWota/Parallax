@@ -91,6 +91,11 @@ def load_real():
     # a building whose newest lot was empty (batch pre-check) is treated like a garage building
     nm = set(car_counts.loc[car_counts.quality_flag == "not_measurable", "building_id"])
     buildings.loc[buildings.building_id.isin(nm), "parking_type"] = "structured"
+    # badly outlined lots (mostly street), listed by scripts.clip_lots: treated like garages - not measurable
+    ex_path = REAL_DIR / "exclude_buildings.csv"
+    if config.EXCLUDE_LISTED and ex_path.exists():
+        excluded = set(pd.read_csv(ex_path).building_id)
+        buildings.loc[buildings.building_id.isin(excluded), "parking_type"] = "excluded"
     garage = set(buildings.loc[buildings.parking_type != "surface", "building_id"])
     car_counts.loc[car_counts.building_id.isin(garage), ["cars", "quality_flag"]] = [np.nan, "not_measurable"]
 

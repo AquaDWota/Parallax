@@ -130,3 +130,7 @@ What real mode changes: captures are Vexcel collections (~1 a year 2016-2026), c
 in the same city and campaign year; baseline is 2016 to Feb 2020; lots with a baseline under 8 cars are
 dropped; garage buildings (from CoStar parking, or an empty newest lot) are excluded; lease outcomes
 come from CoStar `expirationReason` (7/12 renewal, 8 shed space, 1/4/10/... moved out).
+
+## Excluded buildings
+
+`data/real/exclude_buildings.csv` lists buildings whose automatic lot outline is mostly street: less than half of it lies inside property parcels (from `scripts.clip_lots`). They're treated like garage buildings, as not measurable. The rule was set before looking at the results. To include them again and compare, set `PARALLAX_EXCLUDE=0`; that build uses its own database.
