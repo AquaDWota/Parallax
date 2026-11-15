@@ -25,6 +25,7 @@ export default function Page() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<"study" | "watchlist">("study");
   const [screen, setScreen] = useState<any>(null);
+  const [screenFocus, setScreenFocus] = useState<"risk" | "opportunity" | null>(null);
   // display settings (theme, panel order, text size): saved per browser
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [dark, setDark] = useState(true);
@@ -57,9 +58,10 @@ export default function Page() {
     });
   }, []);
   const resetSizes = useCallback(() => { setSizes(DEFAULT_SIZES); saveSizes(DEFAULT_SIZES); }, []);
-  // buildings the latest answer showed as evidence cards: marked in the Watchlist table
+  // buildings the latest answer showed as evidence cards: marked in the Building screen table
   const shownInAnswer = useMemo(() => new Set<string>(turns.length ? evidenceFrom(turns[turns.length - 1].events, screen?.rows).map((e) => e.building_id) : []), [turns, screen]);
   const watchIds = useMemo(() => new Set<string>((screen?.rows ?? []).filter((r: any) => r.watch).map((r: any) => r.building_id)), [screen]);
+  const oppIds = useMemo(() => new Set<string>((screen?.rows ?? []).filter((r: any) => r.opportunity).map((r: any) => r.building_id)), [screen]);
 
   useEffect(() => {
     // ?b=<building id> opens that building (handy for demo links)
@@ -73,7 +75,9 @@ export default function Page() {
       .catch(() => setLoadError("Can't reach the API on port 8000. Start it with: cd backend && uvicorn api.main:app --port 8000"));
     // the backend may still be starting (it rebuilds its database when the data changed): keep retrying
     let tries = 0;
-    const loadScreen = () => api.screen().then(setScreen).catch(() => { if (++tries < 40) setTimeout(loadScreen, 3000); });
+    // once the screen loads, warm the photo cache for flagged buildings so the agent's evidence cards load from disk
+    const loadScreen = () => api.screen().then((d) => setScreen(d))
+      .catch(() => { if (++tries < 40) setTimeout(loadScreen, 3000); });
     loadScreen();
     api.overview().then((o) => setResults({
       occLink: o.occ_link?.bins ? o.occ_link : undefined, occLead: o.occ_lead, occDrop: o.occ_drop,
@@ -104,7 +108,11 @@ export default function Page() {
     if (e.type === "result") {
       setResults((r) => {
         const d = e.data;
-        if (e.tool === "shadow_vacancy_screen") setView("watchlist");
+        if (e.tool === "shadow_vacancy_screen") {
+          setView("watchlist");
+          // open the tab the question was about: the first screen call of an answer sets it
+          setScreenFocus((f) => f ?? (d?.filters?.flag === "opportunity" ? "opportunity" : "risk"));
+        }
         switch (e.tool) {
           case "occupancy_link": return d.bins ? { ...r, occLink: d } : r;
           case "occupancy_lead_lag": return { ...r, occLead: d };
@@ -124,6 +132,7 @@ export default function Page() {
   }, []);
 
   const ask = useCallback(async (q: string) => {
+    setScreenFocus(null);
     setRunning(true);
     setResults((r) => ({ regional: r.regional, bins: r.bins, regression: r.regression, occLink: r.occLink, occLead: r.occLead, occDrop: r.occDrop }));
     setTurns((ts) => [...ts, { question: q, events: [] }]);
@@ -161,13 +170,14 @@ export default function Page() {
           </div>
           <div className="mapwrap">
             {loadError ? <p style={{ padding: "1rem 1.25rem" }}>{loadError}</p> :
-              <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} watch={watchIds} dark={dark} />}
+              <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} watch={watchIds} opportunity={oppIds} dark={dark} />}
             <div className="legend" aria-hidden>
               Lot fill, % of its pre-COVID level
               <div className="ramp">{[50, 65, 80, 92, 100, 108, 120, 135, 150].map((v) => <span key={v} style={{ background: usageColor(v) }} />)}</div>
               <div className="ends"><span>50</span><span>100</span><span>150</span></div>
               <div style={{ marginTop: 4, color: "var(--asphalt-2)" }}>Hollow: garage, not measurable</div>
-              {watchIds.size > 0 && <div style={{ marginTop: 2, color: "var(--left)" }}>Red ring: on the lender watchlist</div>}
+              {watchIds.size > 0 && <div style={{ marginTop: 2, color: "var(--left)" }}>Red ring: risk flag</div>}
+              {oppIds.size > 0 && <div style={{ marginTop: 2, color: "var(--up)" }}>Green ring: investment prospect</div>}
             </div>
             {selected && <BuildingDrawer id={selected} onClose={() => setSelected(null)} />}
           </div>
@@ -183,7 +193,7 @@ export default function Page() {
     return (
         <section className="col col-results" aria-label="Results">
           <ResultsPanel r={results} onPickBin={pickBin} onPickBuilding={pickBuilding} view={view} setView={setView} screen={screen}
-            shownInAnswer={shownInAnswer} />
+            shownInAnswer={shownInAnswer} screenFocus={screenFocus} />
         </section>
     );
   };

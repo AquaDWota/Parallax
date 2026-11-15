@@ -1,4 +1,4 @@
-"""Lender risk screen: buildings that are leased on paper but empty in the lot.
+"""Building screen: where the lease record and the parking lot disagree, in either direction.
 
 Per measurable building with a pre-COVID baseline and at least one capture since 2023:
   leased_pre      CoStar occupancy (tenant sq ft / building size), median over pre-COVID captures, %
@@ -8,9 +8,14 @@ Per measurable building with a pre-COVID baseline and at least one capture since
                   the lease record did, in points. High = shadow vacancy. Leasing gains count up to +10 only:
                   a jump from 20% to 98% leased usually means CoStar's older tenant history is incomplete.
   rollover_24m    share of the building's leased sq ft whose lease expires in the next 24 months
-  watch           leased within 5 points of pre-COVID but parking under 70% of pre-COVID
-Space that is leased but unused is the space most likely to go dark at renewal, so watch buildings with
-large rollover are the ones a lender should look at first.
+  watch           risk flag: leased within 5 points of pre-COVID but parking under 70% of pre-COVID
+  opportunity_score  the mirror of gap: (parking_now - 100) - min(leased_change, +10). High = the lot is busier
+                  than the lease record suggests.
+  opportunity     opportunity flag: lot at or above its pre-COVID level while leasing is no more than 5 points
+                  up and under 90% leased - demand in the building is running ahead of its leases.
+Risk: space that is leased but unused is the space most likely to go dark at renewal, so risk-flagged buildings
+with large rollover deserve the first look. Opportunity: a busy lot with room left to lease points to demand the
+lease record hasn't caught up with - lease-up upside, or tenants CoStar hasn't recorded yet (worth checking).
 """
 from __future__ import annotations
 
@@ -43,6 +48,7 @@ def build_screen(buildings: pd.DataFrame, usage: pd.DataFrame, tenancies: pd.Dat
     d["leased_change"] = d.leased_now - d.leased_pre
     d["parking_change"] = d.parking_now - 100
     d["gap"] = d.leased_change.clip(upper=10) - d.parking_change
+    d["opportunity_score"] = -d.gap
 
     # renewal risk ahead
     d["rollover_24m"] = 0.0
@@ -58,14 +64,19 @@ def build_screen(buildings: pd.DataFrame, usage: pd.DataFrame, tenancies: pd.Dat
         d["expiring_tenants"] = top.reindex(d.index).fillna("")
 
     # CoStar occupancy that computes to ~0% or well over 100% means incomplete tenant records
-    # or that jumps 40+ points means incomplete tenant records: shown, flagged, never on the watchlist
-    d["data_check"] = (d.leased_pre < 20) | (d.leased_pre > 110) | (d.leased_now > 110) | (d.leased_change > 40)
+    # or that moves 40+ points either way means incomplete tenant records: shown, flagged, never flagged as
+    # risk or opportunity
+    d["data_check"] = (d.leased_pre < 20) | (d.leased_pre > 110) | (d.leased_now > 110) | (d.leased_change.abs() > 40)
     d["watch"] = (d.leased_change >= -5) & (d.parking_now <= 70) & ~d.data_check
+    d["opportunity"] = (d.parking_now >= 100) & (d.leased_change <= 5) & (d.leased_now < 90) & ~d.data_check
     b = buildings.set_index("building_id")
     for col in ["name", "city", "submarket", "property_type", "building_class", "lat", "lon", "sqft"]:
         d[col] = b[col].reindex(d.index)
     d = d.reset_index().rename(columns={"index": "building_id"})
-    d = d.sort_values(["watch", "gap", "rollover_24m"], ascending=[False, False, False]).reset_index(drop=True)
+    # risk flags first (by gap), then opportunity flags (by opportunity score), then everything else
+    d["_order"] = np.where(d.watch, 0, np.where(d.opportunity, 1, 2))
+    d["_key"] = np.where(d.opportunity & ~d.watch, d.opportunity_score, d.gap)
+    d = d.sort_values(["_order", "_key", "rollover_24m"], ascending=[True, False, False]).drop(columns=["_order", "_key"]).reset_index(drop=True)
     d["rank"] = np.arange(1, len(d) + 1)
     return d
 
@@ -82,4 +93,6 @@ def summary(d: pd.DataFrame) -> dict:
         median_parking_now=round(float(ok.parking_now.median()), 1),
         watch_rollover_sqft_share=round(float(w.rollover_24m.median()), 1) if len(w) else None,
         watch_with_rollover=int((w.rollover_24m >= 10).sum()),
+        n_opportunity=int(d.opportunity.sum()),
+        share_opportunity=round(float(d.opportunity.sum() / max(len(ok), 1)), 3),
     )

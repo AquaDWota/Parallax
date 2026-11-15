@@ -24,6 +24,7 @@
   --ochre: #e2a64a;       /* above baseline */
   --left: #ec7a66;        /* tenant moved out / risk */
   --left-soft: rgba(236, 122, 102, 0.12);
+  --up: #5fbf7f;          /* increases, opportunity */
 
   /* names the components already use */
   --sheet: var(--bg);
@@ -354,6 +355,10 @@ a:hover { color: var(--ink); }
 .screen tbody tr:hover, .screen tbody tr:focus { background: var(--surface-2); outline: none; }
 .screen tr.watch td:first-child { box-shadow: inset 3px 0 0 var(--left); padding-left: 0.6rem; }
 .screen tr.check { color: var(--ink-3); }
+.screen tr.opp td:first-child { box-shadow: inset 3px 0 0 var(--up); padding-left: 0.6rem; }
+.screen .up, .screen .bmeta.up, .headline-num.up { color: var(--up); }
+.screen .down, .screen .bmeta.down, .headline-num.down { color: var(--left); }
+.evidence .flag.opp { color: var(--up); }
 .screen .bname { display: block; font-weight: 600; }
 .screen .bmeta { display: block; color: var(--ink-3); font-size: 11px; }
 .screen td.strong { font-weight: 700; color: var(--left); }
@@ -579,6 +584,7 @@ html[data-text="l"] { font-size: 18px; }
    Light theme: same design, daylight palette
    ===================================================================== */
 [data-theme="light"] {
+  --up: #2f7d4a;
   color-scheme: light;
   --bg: #eef1f3;
   --surface: #ffffff;

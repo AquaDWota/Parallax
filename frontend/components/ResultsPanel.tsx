@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { Bin } from "@/lib/api";
 import { pct } from "@/lib/api";
 import { BinsChart, LeadChart, OccBinsChart, OffsetChart, RegionalChart } from "./charts";
-import Watchlist from "./Watchlist";
+import BuildingScreen from "./BuildingScreen";
 
 export type Results = {
   occLink?: any;
@@ -32,11 +32,12 @@ function sliceLabel(f: Record<string, any> | undefined) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export default function ResultsPanel({ r, onPickBin, onPickBuilding, view, setView, screen, shownInAnswer }: {
+export default function ResultsPanel({ r, onPickBin, onPickBuilding, view, setView, screen, shownInAnswer, screenFocus }: {
   r: Results;
   onPickBin: (b: Bin, filters: Record<string, any>) => void;
   onPickBuilding: (id: string) => void;
   shownInAnswer?: Set<string>;
+  screenFocus?: "risk" | "opportunity" | null;
   view: "study" | "watchlist";
   setView: (v: "study" | "watchlist") => void;
   screen: any;
@@ -49,14 +50,14 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding, view, setVi
   return (
     <>
       <div className="col-head">
-        <h2>{view === "watchlist" ? "Lender watchlist" : "Results"}</h2>
+        <h2>{view === "watchlist" ? "Building screen" : "Results"}</h2>
         <div className="viewtabs" role="group" aria-label="Results view">
           <button type="button" aria-pressed={view === "study"} onClick={() => setView("study")}>Study</button>
-          <button type="button" aria-pressed={view === "watchlist"} onClick={() => setView("watchlist")}>Watchlist</button>
+          <button type="button" aria-pressed={view === "watchlist"} onClick={() => setView("watchlist")}>Building screen</button>
         </div>
       </div>
       <div className="col-body">
-        {view === "watchlist" ? <Watchlist data={screen} onPick={onPickBuilding} shown={shownInAnswer} /> : <>
+        {view === "watchlist" ? <BuildingScreen data={screen} onPick={onPickBuilding} shown={shownInAnswer} focus={screenFocus} /> : <>
         {r.occLink?.bins?.length > 0 && (
           <section className="result">
             <h3>Parking tracks occupancy</h3>

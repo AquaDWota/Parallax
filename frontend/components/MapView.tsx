@@ -39,18 +39,19 @@ function Recenter({ city }: { city: string }) {
   return null;
 }
 
-export default function MapView({ city, buildings, selected, onSelect, watch, dark = true }: {
+export default function MapView({ city, buildings, selected, onSelect, watch, opportunity, dark = true }: {
   city: string;
   buildings: Building[];
   selected: string | null;
   onSelect: (id: string) => void;
   watch?: Set<string>;
+  opportunity?: Set<string>;
   dark?: boolean;
 }) {
   // the map draws on a canvas, which can't read CSS variables: marker inks per theme
   const ink = dark
-    ? { sel: "#ffffff", watch: "#ec7a66", garage: "#6b757d", edge: "rgba(0,0,0,0.55)" }
-    : { sel: "#1e2428", watch: "#b0412f", garage: "#8d969b", edge: "rgba(30,36,40,0.35)" };
+    ? { sel: "#ffffff", watch: "#ec7a66", opp: "#5fbf7f", garage: "#6b757d", edge: "rgba(0,0,0,0.55)" }
+    : { sel: "#1e2428", watch: "#b0412f", opp: "#2f7d4a", garage: "#8d969b", edge: "rgba(30,36,40,0.35)" };
   const c = CENTERS[city] ?? CENTERS.Houston;
   return (
     <MapContainer center={[c[0], c[1]]} zoom={c[2]} preferCanvas scrollWheelZoom>
@@ -68,14 +69,15 @@ export default function MapView({ city, buildings, selected, onSelect, watch, da
         const garage = b.parking !== "surface";
         const sel = b.id === selected;
         const onWatch = !!watch?.has(b.id);
+        const onOpp = !onWatch && !!opportunity?.has(b.id);
         return (
           <CircleMarker
             key={b.id}
             center={[b.lat, b.lon]}
             radius={sel ? 9 : onWatch ? 7 : garage ? 3 : 5}
             pathOptions={{
-              color: sel ? ink.sel : onWatch ? ink.watch : garage ? ink.garage : ink.edge,
-              weight: sel ? 3 : onWatch ? 2.5 : 1,
+              color: sel ? ink.sel : onWatch ? ink.watch : onOpp ? ink.opp : garage ? ink.garage : ink.edge,
+              weight: sel ? 3 : onWatch || onOpp ? 2.5 : 1,
               fillColor: garage ? "transparent" : usageColor(b.abs_index),
               fillOpacity: garage ? 0 : 0.92,
             }}
@@ -84,7 +86,7 @@ export default function MapView({ city, buildings, selected, onSelect, watch, da
             <Tooltip direction="top" offset={[0, -4]}>
               <strong>{b.name}</strong>
               <br />
-              {b.submarket}, {b.type}, Class {b.cls}{onWatch ? " (on the lender watchlist)" : ""}
+              {b.submarket}, {b.type}, Class {b.cls}{onWatch ? " (risk flag)" : onOpp ? " (investment prospect)" : ""}
               <br />
               {garage ? "Garage parking: not measurable from above" :
                 b.abs_index == null ? `No usable capture (${b.status.replace("_", " ")})` :
