@@ -116,6 +116,9 @@ def discover(c: VexcelClient, lat: float, lon: float, radius: float, min_sqft: f
     return out[:limit]
 
 
+NO_LOT_SHARE = 0.3  # if under 30% of the ring is inside parcels, the building has no surface lot to measure
+
+
 def parcels_in(c: VexcelClient, area_wkt: str, max_pages: int = 10) -> list | None:
     """Every parcel (with its footprints) touching an area, following pages. None if the first call fails.
     Paging matters for clipping: a parcel we never fetched would have its part of the lot cut away."""
@@ -144,7 +147,7 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     except ValueError:
         stalls = float("nan")
     lot, ring_m, lot_m2 = lot_polygon_v2(feat, lat, lon, stalls)
-    n_fp, clip_tag = 0, "_noclip"
+    n_fp, clip_tag, no_lot = 0, "_noclip", False
     try:  # neighbours' roofs inside the ring are not lot (they produced false 'cars' on AC units)
         x0, y0, x1, y1 = lot.bounds
         area = f"POLYGON(({x0} {y0},{x1} {y0},{x1} {y1},{x0} {y1},{x0} {y0}))"
@@ -154,6 +157,7 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
             # drop streets: keep only lot area that lies inside some parcel (roads belong to none)
             lot, kept = clip_to_parcels(lot, feats)
             clip_tag = f"_clip{int(round(kept * 100))}" if kept is not None else "_noclip"
+            no_lot = kept is not None and kept < NO_LOT_SHARE  # the 'lot' was mostly street
             from parallax.lots import _to_m
             from shapely.ops import transform
             lot_m2 = transform(_to_m(lat)[0], lot).area
@@ -183,8 +187,8 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     ordered = sorted(cols.items(), key=lambda kv: kv[1].get("first-capture-date", ""))
     # Pre-check on the newest capture: a lot with almost no cars is a garage building or a
     # mis-placed lot. Skip its other captures to save ~10 API calls per building.
-    skip_rest = False
-    if PRECHECK and ordered:
+    skip_rest = no_lot  # no real surface lot: every capture is not measurable
+    if PRECHECK and ordered and not skip_rest:
         try:
             newest = ordered[-1][0]
             if c.detect_cars_tiled(lot.wkt, collection=newest, tile_m=TILE_M)["count"] < PRECHECK_MIN_CARS:

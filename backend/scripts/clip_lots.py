@@ -49,7 +49,7 @@ def clip_one(c: VexcelClient, bid: str, lot_wkt: str):
     new, kept = clip_to_parcels(lot, feats or [])
     return dict(building_id=bid, old_m2=round(area_m2(lot)), new_m2=round(area_m2(new)),
                 kept_share=kept if kept is not None else "", parcels=len(feats or []),
-                note="" if kept is not None else "no parcel data - unchanged"), lot, new
+                note="no parcel data - unchanged" if kept is None else ("no real lot (mostly street) - will be not measurable" if kept < 0.3 else "")), lot, new
 
 
 def draw(c: VexcelClient, bid: str, lot, new, out: Path):
@@ -114,6 +114,7 @@ def main():
         w.writeheader()
         w.writerows(sorted(report, key=lambda r: r["building_id"]))
     shrunk = {r["building_id"] for r in report if r["kept_share"] != "" and float(r["kept_share"]) < SHRINK}
+    no_lot = [r["building_id"] for r in report if r["kept_share"] != "" and float(r["kept_share"]) < 0.3]
     with open(REAL / "recount_after_clip.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(study[0].keys()))
         w.writeheader()
@@ -123,6 +124,7 @@ def main():
     med = kept[len(kept) // 2] if kept else None
     print(f"\n{len(kept)} lots clipped, median share kept {med:.0%}" if med is not None else "\nno lots clipped")
     print(f"{len(shrunk)} lose 10%+ of their lot -> data/real/recount_after_clip.csv")
+    print(f"{len(no_lot)} have no real lot (under 30% left) and will become not measurable: {', '.join(no_lot[:10])}")
     print("worst:", ", ".join(f"{r['building_id']} {float(r['kept_share']):.0%}" for r in sorted(
         (r for r in report if r["kept_share"] != ""), key=lambda r: float(r["kept_share"]))[:8]))
 

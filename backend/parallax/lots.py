@@ -93,12 +93,13 @@ def subtract_all_footprints(lot, parcel_features: list):
     return lot.difference(unary_union(fps)).buffer(0), len(fps)
 
 
-def clip_to_parcels(lot, parcel_features: list, min_keep: float = 0.3, min_part_m2: float = 25.0):
+def clip_to_parcels(lot, parcel_features: list, min_part_m2: float = 25.0):
     """Keep only the parts of the lot that fall inside some parcel. Streets are public right-of-way and belong
     to no parcel, so this drops roads (and the passing / street-parked cars on them) while keeping parking on
-    neighbouring parcels. Slivers smaller than `min_part_m2` (about two stalls) left along parcel edges are
-    dropped. If the parcels cover less than `min_keep` of the lot, parcel data is probably missing, so the lot
-    is returned unchanged. Returns (lot, kept_share) - kept_share is None when nothing was clipped."""
+    neighbouring parcels. Slivers smaller than `min_part_m2` (about two stalls) are dropped.
+    Returns (lot, kept_share). With no parcel data at all the lot comes back unchanged and kept_share is None.
+    A small kept_share (say under 0.3) means the 'lot' was mostly street: callers treat that building as having
+    no measurable surface lot rather than keep the street outline."""
     from shapely.ops import transform
 
     parcels = []
@@ -111,14 +112,11 @@ def clip_to_parcels(lot, parcel_features: list, min_keep: float = 0.3, min_part_
                 continue
     if not parcels or lot.is_empty:
         return lot, None
+    to_m = _to_m(lot.centroid.y)[0]
     clipped = lot.intersection(unary_union(parcels)).buffer(0)
-    lat0 = lot.centroid.y
-    to_m = _to_m(lat0)[0]
     parts = [g for g in getattr(clipped, "geoms", [clipped]) if g.geom_type == "Polygon" and transform(to_m, g).area >= min_part_m2]
     if not parts:
-        return lot, None
+        return lot, 0.0
     clipped = unary_union(parts)
     share = transform(to_m, clipped).area / max(transform(to_m, lot).area, 1e-9)
-    if share < min_keep:
-        return lot, None
     return clipped, round(share, 3)

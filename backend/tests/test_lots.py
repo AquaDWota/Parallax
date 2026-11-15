@@ -23,9 +23,12 @@ def test_street_between_two_parcels_is_removed():
 def test_missing_parcel_data_leaves_lot_unchanged():
     lot = box(LON, LAT, LON + 100 * M, LAT + 60 * M)
     assert clip_to_parcels(lot, []) == (lot, None)
-    # parcels covering only a corner look like missing data, not a road
+
+
+def test_lot_that_is_mostly_street_reports_a_small_share():
+    lot = box(LON, LAT, LON + 100 * M, LAT + 60 * M)
     new, kept = clip_to_parcels(lot, [parcel(0, 0, 10, 10)])
-    assert kept is None and new.equals(lot)
+    assert kept is not None and kept < 0.3     # the batch marks such a building not measurable
 
 
 def test_slivers_along_parcel_edges_are_dropped():
