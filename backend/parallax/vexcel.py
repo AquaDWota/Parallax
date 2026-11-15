@@ -150,7 +150,7 @@ def lot_polygon(parcel_feature: dict) -> str:
 
     g = parcel_feature["geometry"]
     parcel = swkt.loads(g) if isinstance(g, str) else shape(g)
-    for s in parcel_feature["properties"].get("structures", []):
+    for s in (parcel_feature["properties"].get("structures") or []):
         fp = s.get("footprint-wkt") or s.get("footprint.wkt")
         if fp:
             parcel = parcel.difference(swkt.loads(fp))

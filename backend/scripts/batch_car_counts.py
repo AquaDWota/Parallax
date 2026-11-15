@@ -100,7 +100,7 @@ def discover(c: VexcelClient, lat: float, lon: float, radius: float, min_sqft: f
         if not feats:
             break
         for f in feats:
-            s = f["properties"].get("structures", [])
+            s = (f["properties"].get("structures") or [])
             fp = sum(x.get("footprint.area") or 0 for x in s)
             if fp >= min_sqft:
                 g = f["geometry"]
@@ -122,7 +122,7 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     if feat is not None:
         a = feat["properties"]
         lot = swkt.loads(lot_polygon(feat))
-        fp_sqft = sum(x.get("footprint.area") or 0 for x in a.get("structures", []))
+        fp_sqft = sum(x.get("footprint.area") or 0 for x in (a.get("structures") or []))
         hard = a.get("hardscapes.area")
     else:
         lot, fp_sqft, hard = swkt.loads(square_around(lat, lon, 60)), 0, None

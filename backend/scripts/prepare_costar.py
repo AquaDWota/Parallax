@@ -62,7 +62,7 @@ def load_property_attrs(ids: set) -> dict:
     if not path.exists():
         print("note: commercial-property.jsonl not found - no type/class/parking")
         return out
-    with open(path) as fh:
+    with open(path, encoding="utf-8") as fh:
         for line in fh:
             p = json.loads(line)
             if p["id"] not in ids:
@@ -93,8 +93,8 @@ def load_property_attrs(ids: set) -> dict:
 
 
 def main():
-    occ = [json.loads(l) for l in open(REAL / "location-occupancy.jsonl") if l.strip()]
-    co = [json.loads(l) for l in open(REAL / "company-detail.jsonl") if l.strip()]
+    occ = [json.loads(l) for l in open(REAL / "location-occupancy.jsonl", encoding="utf-8") if l.strip()]
+    co = [json.loads(l) for l in open(REAL / "company-detail.jsonl", encoding="utf-8") if l.strip()]
     company = {c["id"]: c for c in co}
     addr = {c["address"]["id"]: c["address"] for c in co if c.get("address")}
 
@@ -177,7 +177,7 @@ def main():
 
     # ---------- write ----------
     ev_by_prop = Counter(e["property_id"] for e in events if e["expiry_date"] >= "2018")
-    with open(REAL / "costar_properties.csv", "w", newline="") as fh:
+    with open(REAL / "costar_properties.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["building_id", "property_id", "city", "state", "address", "postcode", "lat", "lon",
                     "n_occupancies", "n_tenants", "max_tenant_sqft", "main_space_use", "n_expiries_2018_on"] + list(blank))
@@ -187,7 +187,7 @@ def main():
                         p["lat"], p["lon"], p["n_occupancies"], len(p["n_tenants"]), p["max_tenant_sqft"],
                         p["space_use"].most_common(1)[0][0] if p["space_use"] else "", ev_by_prop.get(p["property_id"], 0)]
                        + [a[k] for k in blank])
-    with open(REAL / "costar_leases.csv", "w", newline="") as fh:
+    with open(REAL / "costar_leases.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=list(events[0].keys()))
         w.writeheader()
         w.writerows(events)
@@ -198,7 +198,7 @@ def main():
     ranked = sorted((p for p in props.values() if imageable(p)),
                     key=lambda p: ({"surface": 0, "mixed": 1}.get(attrs.get(p["property_id"], blank)["parking_type"], 2),
                                    -ev_by_prop[p["property_id"]]))
-    with open(REAL / "costar_buildings.csv", "w", newline="") as fh:
+    with open(REAL / "costar_buildings.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["building_id", "lat", "lon", "name", "city", "area", "n_expiries", "property_type",
                     "building_class", "surface_spaces", "parking_type"])
@@ -208,7 +208,7 @@ def main():
                         ev_by_prop[p["property_id"]], a["property_type"], a["building_class"],
                         a["surface_spaces"], a["parking_type"]])
 
-    with open(REAL / "costar_occupancy.csv", "w", newline="") as fh:
+    with open(REAL / "costar_occupancy.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["building_id", "occupancy_id", "tenant_location_id", "from_date", "to_date", "sqft", "expiration_reason"])
         n_occ = 0
