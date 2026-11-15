@@ -98,7 +98,7 @@ function Card({ e, onPick }: { e: Evidence; onPick: (id: string) => void }) {
 
       {e.leased_now != null || e.parking_now != null ? (
         <dl className="says">
-          <div><dt>CoStar says</dt><dd>{pct(e.leased_pre)} → <b>{pct(e.leased_now)}</b> leased</dd></div>
+          <div><dt>CoStar says</dt><dd><b>{pct(e.leased_now)}</b> leased · was {pct(e.leased_pre)}</dd></div>
           <div><dt>The lot says</dt><dd><b>{e.parking_now == null ? "n/a" : `${Math.round(e.parking_now)}%`}</b> of its pre-COVID cars</dd></div>
           {!!e.rollover_24m && e.rollover_24m > 0 && (
             <div className="warn"><dt>Expiring in 24 months</dt><dd><b>{Math.round(e.rollover_24m)}%</b> of leased space</dd></div>

@@ -18,7 +18,7 @@ export function BinsChart({ bins, onPick }: { bins: Bin[]; onPick?: (b: Bin) => 
       aria-label={`Renewal rate by usage level: ${bins.map((b) => `${Math.round(b.renewal_rate * 100)}%`).join(", ")}`}>
       {ticks.map((t) => (
         <g key={t}>
-          <line x1={left} x2={W} y1={y(t)} y2={y(t)} stroke="#d5dadc" />
+          <line x1={left} x2={W} y1={y(t)} y2={y(t)} stroke="var(--line)" />
           <text x={left - 6} y={y(t) + 4} textAnchor="end">{Math.round(t * 100)}%</text>
         </g>
       ))}
@@ -30,11 +30,11 @@ export function BinsChart({ bins, onPick }: { bins: Bin[]; onPick?: (b: Bin) => 
             aria-label={`Usage ${b.usage_min}-${b.usage_max}: ${Math.round(b.renewal_rate * 100)}% renewed, n=${b.n}. Show examples.`}
             onClick={() => onPick?.(b)} onKeyDown={(e) => { if (e.key === "Enter") onPick?.(b); }}>
             <rect className="fill" x={x} y={y(b.renewal_rate)} width={w} height={y(min) - y(b.renewal_rate)}
-              fill={usageColor(b.usage_median)} stroke="#2b2f33" strokeOpacity={0.25} />
-            <line x1={x + w / 2} x2={x + w / 2} y1={y(b.ci_low)} y2={y(b.ci_high)} stroke="#2b2f33" strokeWidth={1.5} />
-            <line x1={x + w / 2 - 5} x2={x + w / 2 + 5} y1={y(b.ci_high)} y2={y(b.ci_high)} stroke="#2b2f33" strokeWidth={1.5} />
-            <line x1={x + w / 2 - 5} x2={x + w / 2 + 5} y1={y(b.ci_low)} y2={y(b.ci_low)} stroke="#2b2f33" strokeWidth={1.5} />
-            <text x={x + w / 2} y={y(b.ci_high) - 5} textAnchor="middle" style={{ fill: "#2b2f33", fontWeight: 600 }}>
+              fill={usageColor(b.usage_median)} stroke="var(--ink)" strokeOpacity={0.25} />
+            <line x1={x + w / 2} x2={x + w / 2} y1={y(b.ci_low)} y2={y(b.ci_high)} stroke="var(--ink)" strokeWidth={1.5} />
+            <line x1={x + w / 2 - 5} x2={x + w / 2 + 5} y1={y(b.ci_high)} y2={y(b.ci_high)} stroke="var(--ink)" strokeWidth={1.5} />
+            <line x1={x + w / 2 - 5} x2={x + w / 2 + 5} y1={y(b.ci_low)} y2={y(b.ci_low)} stroke="var(--ink)" strokeWidth={1.5} />
+            <text x={x + w / 2} y={y(b.ci_high) - 5} textAnchor="middle" style={{ fill: "var(--ink)", fontWeight: 600 }}>
               {Math.round(b.renewal_rate * 100)}%
             </text>
             <text x={x + w / 2} y={H - bottom + 16} textAnchor="middle">{Math.round(b.usage_median)}</text>
@@ -59,15 +59,15 @@ export function LeadChart({ leads }: { leads: { lead_months: number; window: str
   const step = (W - left) / rows.length;
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Odds ratio of renewal per 10-point usage drop, by lead time">
-      <line x1={left} x2={W} y1={y(1)} y2={y(1)} stroke="#a7afb4" strokeDasharray="4 3" />
+      <line x1={left} x2={W} y1={y(1)} y2={y(1)} stroke="var(--ink-3)" strokeDasharray="4 3" />
       <text x={left - 6} y={y(1) + 4} textAnchor="end">1.0</text>
       <text x={left - 6} y={y(lo) + 10} textAnchor="end">{lo.toFixed(2)}</text>
       {rows.map((r, i) => {
         const cx = left + step * (i + 0.5);
         return (
           <g key={r.lead_months}>
-            <line x1={cx} x2={cx} y1={y(r.or_ci_low!)} y2={y(r.or_ci_high!)} stroke="#2b2f33" strokeWidth={1.5} />
-            <circle cx={cx} cy={y(r.odds_ratio_per_10pt_drop!)} r={5} fill="#f2c230" stroke="#2b2f33" strokeWidth={1.5} />
+            <line x1={cx} x2={cx} y1={y(r.or_ci_low!)} y2={y(r.or_ci_high!)} stroke="var(--ink)" strokeWidth={1.5} />
+            <circle cx={cx} cy={y(r.odds_ratio_per_10pt_drop!)} r={5} fill="var(--paint)" stroke="var(--ink)" strokeWidth={1.5} />
             <text x={cx + 9} y={y(r.odds_ratio_per_10pt_drop!) + 4}>{r.odds_ratio_per_10pt_drop!.toFixed(2)}</text>
             <text x={cx} y={H - bottom + 16} textAnchor="middle">{r.lead_months}-{r.lead_months + 12} mo</text>
             {r.oos_auc != null && <text x={cx} y={H - bottom + 30} textAnchor="middle">AUC {r.oos_auc.toFixed(2)}</text>}
@@ -91,8 +91,8 @@ export function RegionalChart({ series, metric }: { series: SeriesRow[]; metric:
   const x = (h: string) => left + ((W - left - 70) * halves.indexOf(h)) / Math.max(1, halves.length - 1);
   const y = (v: number) => top + (H - top - bottom) * (1 - (v - lo) / (hi - lo));
   const style: Record<string, { stroke: string; dash?: string }> = {
-    Houston: { stroke: "#2b2f33" },
-    "Los Angeles": { stroke: "#c4861c", dash: "6 3" },
+    Houston: { stroke: "var(--ink)" },
+    "Los Angeles": { stroke: "var(--ochre)", dash: "6 3" },
   };
   const fmt = (v: number) => (metric === "usage_index" ? v.toFixed(0) : `${Math.round(v * 100)}%`);
   const covidX0 = halves.includes("2020-H1") ? x("2020-H1") : null;
@@ -100,11 +100,11 @@ export function RegionalChart({ series, metric }: { series: SeriesRow[]; metric:
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Houston vs LA ${metric.replace("_", " ")} 2018-2026`}>
       {covidX0 != null && covidX1 != null && (
-        <rect x={covidX0} y={top} width={covidX1 - covidX0} height={H - top - bottom} fill="#3f6e9a" opacity={0.08} />
+        <rect x={covidX0} y={top} width={covidX1 - covidX0} height={H - top - bottom} fill="var(--slate)" opacity={0.08} />
       )}
       {metric === "usage_index" && lo < 100 && hi > 100 && (
         <>
-          <line x1={left} x2={W - 70} y1={y(100)} y2={y(100)} stroke="#a7afb4" strokeDasharray="4 3" />
+          <line x1={left} x2={W - 70} y1={y(100)} y2={y(100)} stroke="var(--ink-3)" strokeDasharray="4 3" />
           <text x={left - 6} y={y(100) + 4} textAnchor="end">100</text>
         </>
       )}
@@ -116,7 +116,7 @@ export function RegionalChart({ series, metric }: { series: SeriesRow[]; metric:
         const last = pts[pts.length - 1];
         return (
           <g key={c}>
-            <polyline fill="none" stroke={style[c]?.stroke ?? "#3f6e9a"} strokeWidth={2} strokeDasharray={style[c]?.dash}
+            <polyline fill="none" stroke={style[c]?.stroke ?? "var(--slate)"} strokeWidth={2} strokeDasharray={style[c]?.dash}
               points={pts.map((p) => `${x(p.half_year)},${y(p[metric]!)}`).join(" ")} />
             <text x={x(last.half_year) + 6} y={y(last[metric]!) + 4} style={{ fill: style[c]?.stroke, fontWeight: 600 }}>
               {c === "Los Angeles" ? "LA" : c} {fmt(last[metric]!)}
@@ -148,18 +148,18 @@ export function Spark({ history, leases }: {
   const exp = leases.filter((l) => t(l.expiry) >= t0 && t(l.expiry) <= t1);
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Usage history">
-      <line x1={left} x2={W} y1={y(100)} y2={y(100)} stroke="#a7afb4" strokeDasharray="4 3" />
+      <line x1={left} x2={W} y1={y(100)} y2={y(100)} stroke="var(--ink-3)" strokeDasharray="4 3" />
       <text x={left - 5} y={y(100) + 4} textAnchor="end">100</text>
       {exp.map((l, i) => (
         <g key={i}>
           <line x1={x(l.expiry)} x2={x(l.expiry)} y1={top} y2={H - bottom}
-            stroke={l.outcome === "moved_out" || l.outcome === "downsized" ? "#9b3b2f" : "#3f6e9a"} strokeWidth={1.2} opacity={0.7}>
+            stroke={l.outcome === "moved_out" || l.outcome === "downsized" ? "var(--left)" : "var(--slate)"} strokeWidth={1.2} opacity={0.7}>
           </line>
           <title>{`${l.tenant}: ${l.outcome.replace("_", " ")} (${l.expiry})`}</title>
         </g>
       ))}
-      <polyline fill="none" stroke="#2b2f33" strokeWidth={2} points={pts.map((p) => `${x(p.date)},${y(p.index!)}`).join(" ")} />
-      {pts.map((p) => <circle key={p.date} cx={x(p.date)} cy={y(p.index!)} r={2.6} fill={usageColor(p.index)} stroke="#2b2f33" strokeWidth={0.8} />)}
+      <polyline fill="none" stroke="var(--ink)" strokeWidth={2} points={pts.map((p) => `${x(p.date)},${y(p.index!)}`).join(" ")} />
+      {pts.map((p) => <circle key={p.date} cx={x(p.date)} cy={y(p.index!)} r={2.6} fill={usageColor(p.index)} stroke="var(--ink)" strokeWidth={0.8} />)}
       {["2018", "2020", "2022", "2024", "2026"].map((yr) => {
         const d = `${yr}-01-01`;
         if (t(d) < t0 || t(d) > t1) return null;
@@ -182,7 +182,7 @@ export function OccBinsChart({ bins }: { bins: { label: string; n: number; occ_d
       aria-label={`Parking usage vs building's usual level, by occupancy: ${bins.map((b) => `${b.label} ${b.usage_dev}`).join(", ")}`}>
       {ticks.map((t) => (
         <g key={t}>
-          <line x1={left} x2={W} y1={y(t)} y2={y(t)} stroke={t === 0 ? "#a7afb4" : "#e3e7e9"} />
+          <line x1={left} x2={W} y1={y(t)} y2={y(t)} stroke={t === 0 ? "var(--ink-3)" : "var(--line)"} />
           <text x={left - 6} y={y(t) + 4} textAnchor="end">{t > 0 ? `+${t}` : t}</text>
         </g>
       ))}
@@ -192,9 +192,9 @@ export function OccBinsChart({ bins }: { bins: { label: string; n: number; occ_d
         return (
           <g key={b.label}>
             <rect x={x} y={Math.min(y0, y1)} width={w} height={Math.max(1, Math.abs(y1 - y0))}
-              fill={b.usage_dev < 0 ? "#3f6e9a" : "#c4861c"} opacity={0.9} />
-            <line x1={x + w / 2} x2={x + w / 2} y1={y(b.ci_low)} y2={y(b.ci_high)} stroke="#2b2f33" strokeWidth={1.5} />
-            <text x={x + w / 2 + 8} y={b.usage_dev < 0 ? y1 - 4 : y1 + 13} textAnchor="start" style={{ fill: "#2b2f33", fontWeight: 600 }}>
+              fill={b.usage_dev < 0 ? "var(--slate)" : "var(--ochre)"} opacity={0.9} />
+            <line x1={x + w / 2} x2={x + w / 2} y1={y(b.ci_low)} y2={y(b.ci_high)} stroke="var(--ink)" strokeWidth={1.5} />
+            <text x={x + w / 2 + 8} y={b.usage_dev < 0 ? y1 - 4 : y1 + 13} textAnchor="start" style={{ fill: "var(--ink)", fontWeight: 600 }}>
               {b.usage_dev > 0 ? "+" : ""}{b.usage_dev}
             </text>
             <text x={x + w / 2} y={H - bottom + 16} textAnchor="middle">{b.label}</text>
@@ -217,15 +217,15 @@ export function OffsetChart({ offsets }: { offsets: { offset_months: number; coe
   const step = (W - left) / rows.length;
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Parking-occupancy link by timing">
-      <line x1={left} x2={W} y1={y(0)} y2={y(0)} stroke="#a7afb4" strokeDasharray="4 3" />
+      <line x1={left} x2={W} y1={y(0)} y2={y(0)} stroke="var(--ink-3)" strokeDasharray="4 3" />
       <text x={left - 6} y={y(0) + 4} textAnchor="end">0</text>
       {rows.map((r, i) => {
         const cx = left + step * (i + 0.5);
         const sig = (r.p_value ?? 1) < 0.1;
         return (
           <g key={r.offset_months}>
-            <line x1={cx} x2={cx} y1={y(r.ci_low!)} y2={y(r.ci_high!)} stroke="#2b2f33" strokeWidth={1.5} />
-            <circle cx={cx} cy={y(r.coef_per_10pt!)} r={5} fill={sig ? "#f2c230" : "#ffffff"} stroke="#2b2f33" strokeWidth={1.5} />
+            <line x1={cx} x2={cx} y1={y(r.ci_low!)} y2={y(r.ci_high!)} stroke="var(--ink)" strokeWidth={1.5} />
+            <circle cx={cx} cy={y(r.coef_per_10pt!)} r={5} fill={sig ? "var(--paint)" : "var(--bg)"} stroke="var(--ink)" strokeWidth={1.5} />
             <text x={cx + 9} y={y(r.coef_per_10pt!) + 4}>{r.coef_per_10pt! > 0 ? "+" : ""}{r.coef_per_10pt!.toFixed(1)}</text>
             <text x={cx} y={H - bottom + 16} textAnchor="middle">
               {r.offset_months === 0 ? "at capture" : `${r.offset_months > 0 ? "+" : ""}${r.offset_months} mo`}

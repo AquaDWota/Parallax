@@ -124,8 +124,13 @@ export default function AgentPanel({ turns, running, onAsk, onPickBuilding, onSe
       <div className="col-body" aria-live="polite">
         {!turns.length && (
           <div className="empty">
-            <p>Ask how parking relates to tenants: occupancy, sharp drops, lease renewals. The agent plans the
-              analysis, runs it on every measurable building, and shows what it excluded and why.</p>
+            <p className="lede">Ask how parking relates to tenants: occupancy, sharp drops, lease renewals, or which
+              buildings look leased on paper but empty in the lot.</p>
+            <ol className="how">
+              <li><b>Plans the analysis</b><span>picks the tools and hands parts to helper agents</span></li>
+              <li><b>Runs it on every measurable building</b><span>Vexcel car counts against CoStar tenancy records</span></li>
+              <li><b>Shows the proof</b><span>lot photos then and now, and what it excluded and why</span></li>
+            </ol>
           </div>
         )}
         {plan && plan.type === "plan" && running && (
