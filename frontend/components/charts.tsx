@@ -34,7 +34,7 @@ export function BinsChart({ bins, onPick }: { bins: Bin[]; onPick?: (b: Bin) => 
             <line x1={x + w / 2} x2={x + w / 2} y1={y(b.ci_low)} y2={y(b.ci_high)} stroke="#2b2f33" strokeWidth={1.5} />
             <line x1={x + w / 2 - 5} x2={x + w / 2 + 5} y1={y(b.ci_high)} y2={y(b.ci_high)} stroke="#2b2f33" strokeWidth={1.5} />
             <line x1={x + w / 2 - 5} x2={x + w / 2 + 5} y1={y(b.ci_low)} y2={y(b.ci_low)} stroke="#2b2f33" strokeWidth={1.5} />
-            <text x={x + w / 2} y={y(b.ci_high) - 5} textAnchor="middle" style={{ fill: "#2b2f33", fontWeight: 600 }}>
+            <text x={x + w / 2} y={y(b.ci_high) - 5} textAnchor="middle" style={{ fill: "var(--asphalt)", fontWeight: 600 }}>
               {Math.round(b.renewal_rate * 100)}%
             </text>
             <text x={x + w / 2} y={H - bottom + 16} textAnchor="middle">{Math.round(b.usage_median)}</text>
@@ -118,7 +118,7 @@ export function RegionalChart({ series, metric }: { series: SeriesRow[]; metric:
           <g key={c}>
             <polyline fill="none" stroke={style[c]?.stroke ?? "#3f6e9a"} strokeWidth={2} strokeDasharray={style[c]?.dash}
               points={pts.map((p) => `${x(p.half_year)},${y(p[metric]!)}`).join(" ")} />
-            <text x={x(last.half_year) + 6} y={y(last[metric]!) + 4} style={{ fill: style[c]?.stroke, fontWeight: 600 }}>
+            <text x={x(last.half_year) + 6} y={y(last[metric]!) + 4} style={{ fill: style[c]?.stroke === "#2b2f33" ? "var(--asphalt)" : style[c]?.stroke, fontWeight: 600 }}>
               {c === "Los Angeles" ? "LA" : c} {fmt(last[metric]!)}
             </text>
           </g>
@@ -194,7 +194,7 @@ export function OccBinsChart({ bins }: { bins: { label: string; n: number; occ_d
             <rect x={x} y={Math.min(y0, y1)} width={w} height={Math.max(1, Math.abs(y1 - y0))}
               fill={b.usage_dev < 0 ? "#3f6e9a" : "#c4861c"} opacity={0.9} />
             <line x1={x + w / 2} x2={x + w / 2} y1={y(b.ci_low)} y2={y(b.ci_high)} stroke="#2b2f33" strokeWidth={1.5} />
-            <text x={x + w / 2 + 8} y={b.usage_dev < 0 ? y1 - 4 : y1 + 13} textAnchor="start" style={{ fill: "#2b2f33", fontWeight: 600 }}>
+            <text x={x + w / 2 + 8} y={b.usage_dev < 0 ? y1 - 4 : y1 + 13} textAnchor="start" style={{ fill: "var(--asphalt)", fontWeight: 600 }}>
               {b.usage_dev > 0 ? "+" : ""}{b.usage_dev}
             </text>
             <text x={x + w / 2} y={H - bottom + 16} textAnchor="middle">{b.label}</text>

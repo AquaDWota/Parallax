@@ -1,6 +1,7 @@
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import type { ReactNode } from "react";
+import { DEFAULTS, PRELOAD_SCRIPT } from "@/lib/settings";
 
 export const metadata = {
   title: "Parallax",
@@ -9,8 +10,9 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme={DEFAULTS.theme === "light" ? "light" : "dark"} data-text={DEFAULTS.text} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: PRELOAD_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link

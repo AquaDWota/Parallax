@@ -130,3 +130,7 @@ What real mode changes: captures are Vexcel collections (~1 a year 2016-2026), c
 in the same city and campaign year; baseline is 2016 to Feb 2020; lots with a baseline under 8 cars are
 dropped; garage buildings (from CoStar parking, or an empty newest lot) are excluded; lease outcomes
 come from CoStar `expirationReason` (7/12 renewal, 8 shed space, 1/4/10/... moved out).
+
+## Display settings
+
+The interface opens in a dark theme with the Results panel in the middle and the AI agent on the right. The **Display** button in the top bar switches the theme (dark, light, or follow the system), the panel order, and the text size (small, medium or large). Choices are saved in your browser.
