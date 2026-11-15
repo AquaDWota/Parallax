@@ -25,7 +25,7 @@ from shapely import wkt as swkt
 from shapely.ops import transform
 
 from parallax.lots import _to_m, clip_to_parcels
-from parallax.vexcel import VexcelClient, drawing_for
+from parallax.vexcel import VexcelClient
 from scripts.batch_car_counts import parcels_in
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -53,11 +53,25 @@ def clip_one(c: VexcelClient, bid: str, lot_wkt: str):
 
 
 def draw(c: VexcelClient, bid: str, lot, new, out: Path):
+    """Plain ortho of the area, with the outlines drawn here: red = old lot, yellow = lot without streets.
+    (Vexcel's own drawing option fails on long outlines.)"""
+    import io
+    from PIL import Image, ImageDraw
+
     x0, y0, x1, y1 = lot.buffer(0.0002).bounds
     box = f"POLYGON(({x0} {y0},{x1} {y0},{x1} {y1},{x0} {y1},{x0} {y0}))"
-    img = c.ortho(box, drawing=drawing_for(lot.wkt, "#E5483B", 4) + drawing_for(new.wkt, "#F2C230", 3), dims="900,900")
+    im = Image.open(io.BytesIO(c.ortho(box, dims="900,900"))).convert("RGB")
+    w, h = im.size
+    px = lambda x, y: ((x - x0) / (x1 - x0) * w, (y1 - y) / (y1 - y0) * h)
+    d = ImageDraw.Draw(im)
+    for geom, color, width in ((lot, (229, 72, 59), 5), (new, (242, 194, 48), 3)):
+        for poly in getattr(geom, "geoms", [geom]):
+            for ring in [poly.exterior, *poly.interiors]:
+                d.line([px(x, y) for x, y in ring.coords], fill=color, width=width, joint="curve")
+    d.rectangle([0, 0, 330, 26], fill=(0, 0, 0))
+    d.text((8, 7), f"{bid}  red: old lot   yellow: without streets", fill=(255, 255, 255))
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{bid}.jpg").write_bytes(img)
+    im.save(out / f"{bid}.jpg", quality=90)
     return out / f"{bid}.jpg"
 
 
