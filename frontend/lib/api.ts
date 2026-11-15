@@ -96,7 +96,7 @@ export async function askStream(question: string, onEvent: (e: AgentEvent) => vo
 
 /** Usage index -> color. Slate below the building's baseline, ochre above, concrete near 100. */
 export function usageColor(v: number | null | undefined): string {
-  if (v == null || Number.isNaN(v)) return "#B9C0C4";
+  if (v == null || Number.isNaN(v)) return "#5d666e";
   const stops: [number, [number, number, number]][] = [
     [50, [44, 86, 132]],
     [80, [96, 136, 176]],
