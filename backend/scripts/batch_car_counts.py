@@ -152,15 +152,20 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
                                    footprint_m2=round(fp_sqft * 0.0929), stall_capacity_est=capacity,
                                    lot_wkt=lot.wkt, lot_method=f"v4_ring_nofp{n_fp}_tiled{int(TILE_M)}", ring_m=ring_m)])
 
-    cols = {}
+    # Ask which collections cover the lot with its bounding box, not the lot itself: oriented/collections is a
+    # GET, and a detailed lot outline (up to ~40k characters after cutting out neighbours' roofs) makes the URL
+    # too long, so the request failed and the building silently got 0 collections.
+    cols, col_errors = {}, []
     for pt in ("oblique", "nadir"):
         try:
-            for x in c.list_collections(lot.wkt, pt):
+            for x in c.list_collections(lot.envelope.wkt, pt):
                 n = x.get("collection")
                 if n and ORTHO_NAME.match(n) and n not in cols:
                     cols[n] = x
-        except Exception:
-            pass
+        except Exception as e:
+            col_errors.append(f"{pt}: {str(e)[:120]}")
+    if not cols and col_errors:
+        raise RuntimeError("collection lookup failed - " + " | ".join(col_errors))
     caps, rows = [], []
     ordered = sorted(cols.items(), key=lambda kv: kv[1].get("first-capture-date", ""))
     # Pre-check on the newest capture: a lot with almost no cars is a garage building or a
