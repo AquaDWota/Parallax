@@ -35,8 +35,9 @@ You study how parking-lot usage (car counts from Vexcel aerial imagery, about on
      drop come before occupancy falls? (occupancy_* tools)
   2. Secondary: does usage before a lease expires predict whether that tenant renews? (lease tools)
      Most CoStar tenants are small (<10% of their building), so expect a weak lease-level signal.
-  3. Product: the lender risk screen (shadow_vacancy_screen) - buildings leased on paper but empty in the lot,
-     with lease rollover in the next 24 months. Use it for "which buildings", "watchlist", "risk" questions.
+  3. Product: the building screen (shadow_vacancy_screen) - risk flags (leased on paper, empty in the lot) and
+     opportunity flags (lot busier than the leases suggest, room left to lease),
+     with lease rollover in the next 24 months. Use it for "which buildings", "watchlist", "risk", "opportunity", "investment" questions.
 Buildings with structured/underground parking can't be measured from above and are excluded.
 
 How to work:
@@ -77,7 +78,7 @@ SUBAGENTS = [
          system_prompt="Answer with the imagery tools. Always report what was dropped (cloud, shadow, garages) and why.",
          tools=[regional_series, imagery_quality, example_buildings]),
     dict(name="market-analyst",
-         description="CoStar submarket context and the lender risk screen (leased vs used, rollover ahead).",
+         description="CoStar submarket context and the building screen (leased vs used: risk and opportunity flags, rollover ahead).",
          system_prompt="Give submarket context with submarket_context, and building-level risk with "
                        "shadow_vacancy_screen. Keep it to the few buildings or submarkets that matter.",
          tools=[shadow_vacancy_screen, submarket_context, run_sql]),
@@ -254,7 +255,7 @@ def parse_filters(q: str) -> dict:
 
 def _intent(q: str) -> str:
     ql = q.lower()
-    if re.search(r"watch ?list|risk|lender|which buildings|shadow vacan|leased but|screen", ql) or re.search(
+    if re.search(r"watch ?list|risk|lender|which buildings|shadow vacan|leased but|screen|opportunit|invest|upside", ql) or re.search(
             r"(which|top|list)\b.*\bbuildings?\b.*(empt|drop|declin|fell|lost)|empt\w* the most|most empt", ql):
         return "screen"
     if re.search(r"renew|lease (expir|outcome)|tenant (leav|stay)", ql):
@@ -351,8 +352,14 @@ async def _ask_scripted(question: str) -> AsyncIterator[dict]:
     of = {k: v for k, v in f.items() if k in ("city", "property_type", "building_class")}
     sf = {k: v for k, v in f.items() if k in ("city", "property_type")}
     steps = {
-        "screen": [("shadow_vacancy_screen", "market-analyst", {**sf, "limit": 15}),
-                   ("shadow_vacancy_screen", "market-analyst", {**sf, "watch_only": True, "limit": 10})],
+        # opportunity questions lead with the opportunity flags (their evidence cards come first)
+        "screen": ([("shadow_vacancy_screen", "market-analyst", {**sf, "flag": "opportunity", "limit": 10}),
+                    ("shadow_vacancy_screen", "market-analyst", {**sf, "limit": 15}),
+                    ("shadow_vacancy_screen", "market-analyst", {**sf, "watch_only": True, "limit": 10})]
+                   if re.search(r"opportunit|invest|upside|undervalu|lease.?up", question.lower()) else
+                   [("shadow_vacancy_screen", "market-analyst", {**sf, "limit": 15}),
+                    ("shadow_vacancy_screen", "market-analyst", {**sf, "watch_only": True, "limit": 10}),
+                    ("shadow_vacancy_screen", "market-analyst", {**sf, "flag": "opportunity", "limit": 10})]),
         "occupancy": [("occupancy_link", "statistician", of), ("occupancy_lead_lag", "statistician", of),
                       ("occupancy_after_drop", "statistician", of),
                       ("occupancy_by_group", "statistician", {**{k: v for k, v in of.items() if k != "property_type"}, "by": "property_type"}),
@@ -459,12 +466,21 @@ def _write_note(q: str, slice_name: str, intent: str, R: dict) -> str:
     sc = [v for k, v in R.items() if k.startswith("shadow_vacancy_screen")]
     if sc and sc[0].get("summary", {}).get("n"):
         sm = sc[0]["summary"]
-        L.append(f"**Watchlist:** {sm['n_watch']} of {sm['n_clean']} buildings ({sm['share_watch']:.0%}) are leased on paper "
-                 f"but empty in the lot. Lots overall run at {sm['median_parking_now']:.0f}% of pre-COVID while recorded "
-                 f"occupancy changed {sm['median_leased_change']:+.0f} points.")
-        top = [r for r in sc[-1].get("rows", []) if r.get("watch")][:5]
+        L.append(f"**Risk flags:** {sm['n_watch']} of {sm['n_clean']} buildings ({sm['share_watch']:.0%}) are leased on paper "
+                 f"but empty in the lot. **Opportunity flags:** {sm.get('n_opportunity', 0)} have lots busier than their leases "
+                 f"suggest, with room left to lease. Lots overall run at {sm['median_parking_now']:.0f}% of pre-COVID while "
+                 f"recorded occupancy changed {sm['median_leased_change']:+.0f} points.")
+        opp = []
+        for res in sc:
+            opp += [r for r in res.get("rows", []) if r.get("opportunity") and r["building_id"] not in {o["building_id"] for o in opp}]
+        if opp:
+            L.append("**Opportunity flags:** " + "; ".join(
+                f"{r['name']} ({r['city']}, {r['property_type']}): {r['leased_now']:.0f}% leased, lot at {r['parking_now']:.0f}% "
+                f"of pre-COVID" for r in sorted(opp, key=lambda r: -(r.get("opportunity_score") or 0))[:5]) + ".")
+        top = [r for res in sc for r in res.get("rows", []) if r.get("watch")]
+        top = list({r["building_id"]: r for r in top}.values())[:5]
         if top:
-            L.append("**Top of the list:** " + "; ".join(
+            L.append("**Top risk flags:** " + "; ".join(
                 f"{r['name']} ({r['city']}, {r['property_type']}): {r['leased_now']:.0f}% leased, lot at {r['parking_now']:.0f}% "
                 f"of pre-COVID" + (f", {r['rollover_24m']:.0f}% of leased space expiring within 24 months" if r.get('rollover_24m') else "")
                 for r in top) + ".")

@@ -14,13 +14,14 @@ export type Evidence = {
   parking_now?: number | null;  // lot since 2023 as % of its pre-COVID fill
   rollover_24m?: number | null; // % of leased sq ft expiring in the next 24 months
   watch?: boolean;
+  opportunity?: boolean;
   note?: string;                // free text when the source isn't the screen
 };
 
 const MAX_CARDS = 3;
 
 /** Pull the buildings worth showing out of one answer's tool results.
- *  fullScreen: every row of the lender screen (the page loads it for the Watchlist). When the answer used
+ *  fullScreen: every row of the building screen (the page loads it for that tab). When the answer used
  *  the screen, cards choose from all of it with the same filters, not just the few rows the agent asked for. */
 export function evidenceFrom(events: AgentEvent[], fullScreen?: any[]): Evidence[] {
   const out: Evidence[] = [];
@@ -43,7 +44,13 @@ export function evidenceFrom(events: AgentEvent[], fullScreen?: any[]): Evidence
       const rows: any[] = pool.filter((r: any) => !r.data_check);
       const steady = (r: any) => r.watch && Math.abs(r.leased_change ?? 99) <= 5;
       const byGap = (a: any, b: any) => (b.gap ?? 0) - (a.gap ?? 0);
-      for (const r of [...rows.filter(steady).sort(byGap), ...rows.filter((r) => r.watch), ...rows]) add(r);
+      if (f.flag === "opportunity") {
+        // asked about upside: busiest lots relative to their leases first
+        const byOpp = (a: any, b: any) => (b.opportunity_score ?? 0) - (a.opportunity_score ?? 0);
+        for (const r of [...rows.filter((r) => r.opportunity).sort(byOpp), ...rows]) add(r);
+      } else {
+        for (const r of [...rows.filter(steady).sort(byGap), ...rows.filter((r) => r.watch), ...rows]) add(r);
+      }
     } else if (e.tool === "example_buildings") {
       for (const x of e.data?.examples ?? [])
         add({
@@ -75,19 +82,20 @@ function Card({ e, onPick }: { e: Evidence; onPick: (id: string) => void }) {
       <header>
         <h4>{e.name}</h4>
         <span className="sub">{[e.property_type, e.submarket].filter(Boolean).join(" · ")}</span>
-        {e.watch && <span className="flag">leased on paper, empty in the lot</span>}
+        {e.watch && <span className="flag">risk: leased on paper, empty in the lot</span>}
+        {!e.watch && e.opportunity && <span className="flag opp">investment prospect: lot busier than its leases</span>}
       </header>
 
       <div className="photos">
         {photos ? (
           <>
             <figure>
-              <img loading="lazy" src={api.imageUrl(e.building_id, then.capture_id)} alt={`Lot on ${then.date}: ${then.cars} cars`} />
+              <img loading="lazy" decoding="async" src={api.imageUrl(e.building_id, then.capture_id)} alt={`Lot on ${then.date}: ${then.cars} cars`} />
               <figcaption>{then.date.slice(0, 4)} · {then.cars} cars</figcaption>
             </figure>
             <span className="arrow" aria-hidden>→</span>
             <figure>
-              <img loading="lazy" src={api.imageUrl(e.building_id, now.capture_id)} alt={`Lot on ${now.date}: ${now.cars} cars`} />
+              <img loading="lazy" decoding="async" src={api.imageUrl(e.building_id, now.capture_id)} alt={`Lot on ${now.date}: ${now.cars} cars`} />
               <figcaption>{now.date.slice(0, 4)} · {now.cars} cars</figcaption>
             </figure>
           </>
@@ -134,7 +142,7 @@ export default function EvidenceCards({ items, onPick, nWatch = 0, onSeeAll }: {
         ? "Clearest cases: leasing unchanged, lot emptied" : "Evidence: records vs. the lot"}</p>
       {items.map((e) => <Card key={e.building_id} e={e} onPick={onPick} />)}
       {onSeeAll && nWatch > items.length && (
-        <button type="button" className="seeAll" onClick={onSeeAll}>See all {nWatch} on the Watchlist →</button>
+        <button type="button" className="seeAll" onClick={onSeeAll}>See all {nWatch} risk flags in the building screen →</button>
       )}
     </section>
   );

@@ -266,13 +266,15 @@ def occupancy_by_group(by: str = "property_type", city: Optional[str] = None,
     return _json(dict(filters=f, **O.by_group(p, by)))
 
 
-# ---------------------------------------------------------------- lender risk screen
+# ---------------------------------------------------------------- building screen (risk and opportunity)
 def shadow_vacancy_screen(city: Optional[str] = None, property_type: Optional[str] = None,
-                          watch_only: bool = False, limit: int = 15) -> str:
-    """Lender risk screen: buildings leased on paper but empty in the lot. Per building: CoStar occupancy
-    before COVID and now, parking since 2023 as % of pre-COVID, the gap between the two (points), share of
-    leased sq ft expiring in the next 24 months, the biggest expiring tenants, and a watch flag (leased within
-    5 points of pre-COVID but parking under 70%). Ranked watch first, then by gap."""
+                          watch_only: bool = False, flag: Optional[str] = None, limit: int = 15) -> str:
+    """Building screen: where the lease record and the parking lot disagree. Per building: CoStar occupancy
+    before COVID and now, parking since 2023 as % of pre-COVID, a risk score (gap: how much more the lot emptied
+    than the leases did) and an opportunity score (how much busier the lot is than the leases suggest), share of
+    leased sq ft expiring in the next 24 months, and two flags: risk ('watch': leased within 5 points of
+    pre-COVID but parking under 70%) and opportunity (lot at or above pre-COVID, leasing no more than 5 points up,
+    under 90% leased). flag='risk' or 'opportunity' keeps only those. Ranked risk first, then opportunity."""
     from .screen import summary
     d = get_store().screen()
     if city:
@@ -280,13 +282,15 @@ def shadow_vacancy_screen(city: Optional[str] = None, property_type: Optional[st
     if property_type:
         d = d[d.property_type.str.lower() == property_type.lower()]
     summ = summary(d)
-    if watch_only:
+    if watch_only or flag == "risk":
         d = d[d.watch]
+    elif flag == "opportunity":
+        d = d[d.opportunity]
     cols = ["rank", "building_id", "name", "city", "submarket", "property_type", "building_class", "leased_pre",
-            "leased_now", "leased_change", "parking_now", "gap", "rollover_24m", "expiring_tenants", "watch",
+            "leased_now", "leased_change", "parking_now", "gap", "opportunity_score", "rollover_24m", "expiring_tenants", "watch", "opportunity",
             "data_check", "n_recent", "lat", "lon"]
     rows = d.head(int(limit))[cols].round(1).replace({np.nan: None}).to_dict("records") if len(d) else []
-    return _json(dict(filters={k: v for k, v in dict(city=city, property_type=property_type).items() if v},
+    return _json(dict(filters={k: v for k, v in dict(city=city, property_type=property_type, flag=flag).items() if v},
                       summary=summ, rows=rows))
 
 

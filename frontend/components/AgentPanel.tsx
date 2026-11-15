@@ -6,6 +6,7 @@ import EvidenceCards, { evidenceFrom, watchCountFrom } from "./EvidenceCards";
 const SUGGESTIONS = [
   "Does parking track building occupancy?",
   "Which buildings are leased but empty?",
+  "Which buildings look like investment opportunities?",
   "Does a sharp drop in parking come before occupancy falls?",
   "Does parking track occupancy for offices in Houston?",
   "Does parking usage predict lease renewals?",
@@ -92,7 +93,7 @@ function Note({ md }: { md: string }) {
 function describeArgs(args: Record<string, unknown>) {
   const parts = Object.entries(args)
     .filter(([k]) => !["include_noise_test", "limit", "n"].includes(k))
-    .map(([k, v]) => (k === "watch_only" ? "watchlist only" : k === "min_lease_share" ? `tenants ${Math.round(Number(v) * 100)}%+ of building` :
+    .map(([k, v]) => (k === "watch_only" ? "risk flags only" : k === "min_lease_share" ? `tenants ${Math.round(Number(v) * 100)}%+ of building` :
       k === "by" ? `by ${String(v).replace("_", " ")}` : k === "exclude_covid" ? "without 2020-21" : String(v)));
   return parts.length ? ` (${parts.join(", ")})` : "";
 }
