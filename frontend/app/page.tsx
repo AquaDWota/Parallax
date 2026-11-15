@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentPanel, { type Turn } from "@/components/AgentPanel";
 import BuildingDrawer from "@/components/BuildingDrawer";
 import ResultsPanel, { type Results } from "@/components/ResultsPanel";
+import ParkingLegend from "@/components/ParkingLegend";
 import Stalls from "@/components/Stalls";
 import { api, askStream, usageColor, activityMultiple, type AgentEvent, type Building, type Meta } from "@/lib/api";
 
@@ -175,15 +176,9 @@ export default function Page() {
           <div className="mapwrap">
             {loadError ? <p style={{ padding: "1rem 1.25rem" }}>{loadError}</p> :
               <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} />}
-            <div className="legend" role="note" aria-label="Parking activity color scale">
-              Parking activity relative to pre-COVID
-              <div className="ramp">{[50, 65, 80, 92, 100, 108, 120, 135, 150].map((v) => <span key={v} style={{ background: usageColor(v) }} />)}</div>
-              <div className="ends"><span>0.5x: half</span><span>1x: reference</span><span>1.5x: 50% more</span></div>
-              <div className="legend-note">Blue: lower activity. Amber: higher activity.<br />Not a good/bad rating. Gray: no usable value.</div>
-              <div style={{ marginTop: 4, color: "var(--asphalt-2)" }}>Hollow: garage, not measurable</div>
-            </div>
             {selected && <BuildingDrawer id={selected} onClose={() => setSelected(null)} />}
           </div>
+          <div className="map-activity-info"><ParkingLegend baselineMethod="mean" /></div>
           {meta && <Stalls periods={meta.periods} index={pi} onChange={setPi} summary={summary} />}
         </section>
 
