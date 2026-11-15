@@ -79,7 +79,7 @@ export default function BuildingScreen({ data, onPick, shown, focus }: { data: a
                 </td>
                 <td className="num">{fmt(r.leased_now)}%<span className={`bmeta ${r.leased_change > 0 ? "up" : r.leased_change < 0 ? "down" : ""}`}>{signed(r.leased_change)} pts</span></td>
                 <td className={`num ${r.parking_now >= 100 ? "up" : "down"}`}>{fmt(r.parking_now)}%</td>
-                <td className={`num strong ${view === "opportunity" || (view === "all" && r.opportunity && !r.watch) ? "up" : r.watch ? "down" : ""}`}>{signed(score(r))}</td>
+                <td className={`num strong ${r.opportunity && !r.watch ? "up" : r.watch ? "down" : ""}`}>{signed(score(r))}</td>
                 <td className="num">{r.rollover_24m ? `${fmt(r.rollover_24m)}%` : "none recorded"}</td>
               </tr>
             ))}

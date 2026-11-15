@@ -361,7 +361,10 @@ a:hover { color: var(--ink); }
 .evidence .flag.opp { color: var(--up); }
 .screen .bname { display: block; font-weight: 600; }
 .screen .bmeta { display: block; color: var(--ink-3); font-size: 11px; }
-.screen td.strong { font-weight: 700; color: var(--left); }
+.screen td.strong { font-weight: 700; }
+/* score colour: green for an investment prospect, red for a risk flag */
+.screen td.strong.up { color: var(--up); }
+.screen td.strong.down { color: var(--left); }
 
 /* ---------- evidence cards (agent answer: records vs. the lot) ---------- */
 .evidenceList { margin-top: 0.75rem; display: grid; gap: 0.7rem; }
