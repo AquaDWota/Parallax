@@ -27,7 +27,8 @@ def _load_env(path: Path) -> None:
 _load_env(ENV_PATH)
 DATA_DIR = Path(os.environ.get("PARALLAX_DATA_DIR", REPO_ROOT / "data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / f"parallax_{os.environ.get('PARALLAX_DATA_MODE', 'synthetic')}.duckdb"
+DB_PATH = DATA_DIR / (f"parallax_{os.environ.get('PARALLAX_DATA_MODE', 'synthetic')}"
+                      + ("" if os.environ.get("PARALLAX_EXCLUDE", "1") == "1" else "_allbuildings") + ".duckdb")
 
 DATA_MODE = os.environ.get("PARALLAX_DATA_MODE", "synthetic")
 MODEL = os.environ.get("PARALLAX_MODEL", "anthropic:claude-sonnet-5-5")
@@ -50,6 +51,9 @@ MIN_BASELINE_CARS = 8 if REAL else 0
 # gives a flight's date range (median ~24 days), not the day each building was shot, so the
 # neighbours stand in for the calendar. Set PARALLAX_OFF_DAY=0 to switch it off and compare.
 OFF_DAY_FILTER = os.environ.get("PARALLAX_OFF_DAY", "1") == "1"
+# Buildings listed in data/real/exclude_buildings.csv (badly outlined lots, from scripts.clip_lots) are left out
+# as not measurable. PARALLAX_EXCLUDE=0 puts them back, to report results both ways.
+EXCLUDE_LISTED = os.environ.get("PARALLAX_EXCLUDE", "1") == "1"
 # Calendar filter (runs first, when data/real/photo_dates.csv exists): Vexcel's raw-photo search gives
 # the exact day each building was shot. Measured on the real counts (cars vs the lot's usual):
 # weekdays 1.05x, Sundays 0.69x, Jan 1 0.50x, Saturdays 0.96x (offices ~normal, industrial/flex low).
