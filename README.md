@@ -148,3 +148,6 @@ Tiles are cached in `data/imagery_tiles/` (git-ignored) as PNG, because JPEG com
 ## Excluded buildings
 
 `data/real/exclude_buildings.csv` lists buildings whose automatic lot outline is mostly street: more than 20% of it lies outside property parcels (from `scripts.clip_lots`). They're treated like garage buildings, as not measurable. The rule was set before looking at the results. To include them again and compare, set `PARALLAX_EXCLUDE=0`; that build uses its own database.
+## Display settings
+
+The interface opens in a dark theme with the Results panel in the middle and the AI agent on the right. The **Display** button in the top bar switches the theme (dark, light, or follow the system), the panel order, and the text size (small, medium or large). Choices are saved in your browser.

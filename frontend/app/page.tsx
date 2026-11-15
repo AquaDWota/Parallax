@@ -5,8 +5,10 @@ import AgentPanel, { type Turn } from "@/components/AgentPanel";
 import { evidenceFrom } from "@/components/EvidenceCards";
 import BuildingDrawer from "@/components/BuildingDrawer";
 import ResultsPanel, { type Results } from "@/components/ResultsPanel";
+import SettingsMenu from "@/components/SettingsMenu";
 import Stalls from "@/components/Stalls";
 import { api, askStream, usageColor, type AgentEvent, type Building, type Meta } from "@/lib/api";
+import { DEFAULTS, applySettings, loadSettings, resolveTheme, saveSettings, type Settings } from "@/lib/settings";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
@@ -24,6 +26,20 @@ export default function Page() {
   const [screen, setScreen] = useState<any>(null);
   // buildings the latest answer showed as evidence cards: marked in the Watchlist table
   const shownInAnswer = useMemo(() => new Set<string>(turns.length ? evidenceFrom(turns[turns.length - 1].events, screen?.rows).map((e) => e.building_id) : []), [turns, screen]);
+  const [settings, setSettings] = useState<Settings>(DEFAULTS);
+  const [dark, setDark] = useState(true);
+
+  useEffect(() => { setSettings(loadSettings()); }, []);
+  useEffect(() => {
+    applySettings(settings);
+    setDark(resolveTheme(settings.theme) === "dark");
+    if (settings.theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const follow = () => { applySettings(settings); setDark(mq.matches); };
+    mq.addEventListener("change", follow);
+    return () => mq.removeEventListener("change", follow);
+  }, [settings]);
+  const updateSettings = useCallback((s: Settings) => { setSettings(s); saveSettings(s); }, []);
   const watchIds = useMemo(() => new Set<string>((screen?.rows ?? []).filter((r: any) => r.watch).map((r: any) => r.building_id)), [screen]);
 
   useEffect(() => {
@@ -118,9 +134,10 @@ export default function Page() {
         <h1 className="wordmark">Parallax</h1>
         <p className="thesis">Parking lots as a live occupancy gauge: Vexcel aerial car counts against CoStar tenancies, Houston and LA, 2016 to 2026.</p>
         {meta && <span className="mode">{meta.data_mode === "synthetic" ? "Synthetic data" : "Real Vexcel + CoStar data"}, {meta.agent_mode === "llm" ? "LLM planner" : "scripted planner"}</span>}
+        <SettingsMenu settings={settings} onChange={updateSettings} />
       </header>
 
-      <main className="grid">
+      <main className="grid" data-layout={settings.layout}>
         <section className="col" aria-label="Map">
           <div className="col-head">
             <h2>Lots by usage</h2>
@@ -132,7 +149,7 @@ export default function Page() {
           </div>
           <div className="mapwrap">
             {loadError ? <p style={{ padding: "1rem 1.25rem" }}>{loadError}</p> :
-              <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} watch={watchIds} />}
+              <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} watch={watchIds} dark={dark} />}
             <div className="legend" aria-hidden>
               Lot fill, % of its pre-COVID level
               <div className="ramp">{[50, 65, 80, 92, 100, 108, 120, 135, 150].map((v) => <span key={v} style={{ background: usageColor(v) }} />)}</div>
@@ -145,12 +162,12 @@ export default function Page() {
           {meta && <Stalls periods={meta.periods} index={pi} onChange={setPi} summary={summary} />}
         </section>
 
-        <section className="col" aria-label="Agent">
+        <section className="col col-agent" aria-label="Agent">
           <AgentPanel turns={turns} running={running} onAsk={ask} onPickBuilding={pickBuilding}
             onSeeWatchlist={() => setView("watchlist")} screenRows={screen?.rows} />
         </section>
 
-        <section className="col" aria-label="Results">
+        <section className="col col-results" aria-label="Results">
           <ResultsPanel r={results} onPickBin={pickBin} onPickBuilding={pickBuilding} view={view} setView={setView} screen={screen}
             shownInAnswer={shownInAnswer} />
         </section>

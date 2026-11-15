@@ -28,13 +28,17 @@ function Recenter({ city }: { city: string }) {
   return null;
 }
 
-export default function MapView({ city, buildings, selected, onSelect, watch }: {
+export default function MapView({ city, buildings, selected, onSelect, watch, dark = false }: {
   city: string;
   buildings: Building[];
   selected: string | null;
   onSelect: (id: string) => void;
   watch?: Set<string>;
+  dark?: boolean;
 }) {
+  const ink = dark
+    ? { sel: "#f2c230", watch: "#e0705f", garage: "#7d868c", edge: "rgba(230,232,234,0.35)" }
+    : { sel: "#2b2f33", watch: "#9b3b2f", garage: "#8d969b", edge: "rgba(43,47,51,0.35)" };
   const c = CENTERS[city] ?? CENTERS.Houston;
   return (
     <MapContainer center={[c[0], c[1]]} zoom={c[2]} preferCanvas scrollWheelZoom>
@@ -57,7 +61,7 @@ export default function MapView({ city, buildings, selected, onSelect, watch }: 
             center={[b.lat, b.lon]}
             radius={sel ? 9 : onWatch ? 7 : garage ? 3 : 5}
             pathOptions={{
-              color: sel ? "#2b2f33" : onWatch ? "#9b3b2f" : garage ? "#8d969b" : "rgba(43,47,51,0.35)",
+              color: sel ? ink.sel : onWatch ? ink.watch : garage ? ink.garage : ink.edge,
               weight: sel ? 3 : onWatch ? 2.5 : 1,
               fillColor: garage ? "transparent" : usageColor(b.abs_index),
               fillOpacity: garage ? 0 : 0.92,
