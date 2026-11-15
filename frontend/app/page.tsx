@@ -36,7 +36,10 @@ export default function Page() {
       setPi(Math.max(0, m.periods.indexOf(pre[pre.length - 1] ?? m.periods[0])));
     })
       .catch(() => setLoadError("Can't reach the API on port 8000. Start it with: cd backend && uvicorn api.main:app --port 8000"));
-    api.screen().then(setScreen).catch(() => {});
+    // the backend may still be starting (it rebuilds its database when the data changed): keep retrying
+    let tries = 0;
+    const loadScreen = () => api.screen().then(setScreen).catch(() => { if (++tries < 40) setTimeout(loadScreen, 3000); });
+    loadScreen();
     api.overview().then((o) => setResults({
       occLink: o.occ_link?.bins ? o.occ_link : undefined, occLead: o.occ_lead, occDrop: o.occ_drop,
       bins: o.bins, regression: o.regression, regional: o.regional,
