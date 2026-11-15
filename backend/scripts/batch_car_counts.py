@@ -37,7 +37,7 @@ from shapely import wkt as swkt
 from shapely.geometry import shape
 
 from parallax.config import DATA_DIR
-from parallax.lots import lot_polygon_v2, subtract_all_footprints
+from parallax.lots import clip_to_parcels, lot_polygon_v2, subtract_all_footprints
 from parallax.vexcel import VexcelClient, square_around
 
 OUT = DATA_DIR / "real"
@@ -116,6 +116,23 @@ def discover(c: VexcelClient, lat: float, lon: float, radius: float, min_sqft: f
     return out[:limit]
 
 
+def parcels_in(c: VexcelClient, area_wkt: str, max_pages: int = 10) -> list | None:
+    """Every parcel (with its footprints) touching an area, following pages. None if the first call fails.
+    Paging matters for clipping: a parcel we never fetched would have its part of the lot cut away."""
+    feats = []
+    for page in range(1, max_pages + 1):
+        r = c.send("GET", "property/extract", timeout=180, params={
+            "wkt": area_wkt, "srid": 4326, "layer": "urban,urban-r,wide-area,urban-g", "latest": "true",
+            "include": "precomputed", "page": page, "page-size": 200})
+        if not r.ok:
+            return feats or None
+        got = r.json().get("features", [])
+        feats += got
+        if len(got) < 200:
+            break
+    return feats
+
+
 def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     lat, lon = float(b["lat"]), float(b["lon"])
     feat = b.get("parcel")
@@ -127,15 +144,16 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
     except ValueError:
         stalls = float("nan")
     lot, ring_m, lot_m2 = lot_polygon_v2(feat, lat, lon, stalls)
-    n_fp = 0
+    n_fp, clip_tag = 0, "_noclip"
     try:  # neighbours' roofs inside the ring are not lot (they produced false 'cars' on AC units)
         x0, y0, x1, y1 = lot.bounds
         area = f"POLYGON(({x0} {y0},{x1} {y0},{x1} {y1},{x0} {y1},{x0} {y0}))"
-        r = c.send("GET", "property/extract", timeout=180, params={
-            "wkt": area, "srid": 4326, "layer": "urban,urban-r,wide-area,urban-g", "latest": "true",
-            "include": "precomputed", "page-size": 200})
-        if r.ok:
-            lot, n_fp = subtract_all_footprints(lot, r.json().get("features", []))
+        feats = parcels_in(c, area)
+        if feats is not None:
+            lot, n_fp = subtract_all_footprints(lot, feats)
+            # drop streets: keep only lot area that lies inside some parcel (roads belong to none)
+            lot, kept = clip_to_parcels(lot, feats)
+            clip_tag = f"_clip{int(round(kept * 100))}" if kept is not None else "_noclip"
             from parallax.lots import _to_m
             from shapely.ops import transform
             lot_m2 = transform(_to_m(lat)[0], lot).area
@@ -150,7 +168,7 @@ def process(c: VexcelClient, b: dict, known_caps: set) -> tuple[int, int]:
                                    area=b.get("area", ""), lat=round(lat, 6), lon=round(lon, 6),
                                    lot_area_m2=round(lot_m2), hardscape_m2=round(hard_m2) if hard_m2 else "",
                                    footprint_m2=round(fp_sqft * 0.0929), stall_capacity_est=capacity,
-                                   lot_wkt=lot.wkt, lot_method=f"v4_ring_nofp{n_fp}_tiled{int(TILE_M)}", ring_m=ring_m)])
+                                   lot_wkt=lot.wkt, lot_method=f"v5_ring_nofp{n_fp}{clip_tag}_tiled{int(TILE_M)}", ring_m=ring_m)])
 
     cols = {}
     for pt in ("oblique", "nadir"):
