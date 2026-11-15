@@ -129,6 +129,7 @@ a:hover { color: var(--ink); }
 }
 .col { min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); position: relative; }
 .col:last-child { border-right: 0; }
+.grid > .col { border-right: 0; }
 .col-head {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: 0.85rem 1.25rem 0.7rem;
@@ -330,7 +331,8 @@ a:hover { color: var(--ink); }
 .leases td { padding: 0.3rem 0.4rem 0.3rem 0; border-bottom: 1px solid var(--line); }
 
 @media (max-width: 1100px) {
-  .grid { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: 1fr !important; }
+  .splitter { display: none; }
   .shell { height: auto; }
   .col { border-right: 0; border-bottom: 1px solid var(--line); }
   .mapwrap { min-height: 420px; }
@@ -572,11 +574,6 @@ html[data-text="l"] { font-size: 18px; }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--paint); color: var(--paint-ink); font-weight: 600; }
 
-/* panel order: map stays left; the agent is in the middle by default, results can swap in */
-.grid[data-layout="results-middle"] { grid-template-columns: minmax(380px, 1.15fr) minmax(360px, 1fr) minmax(340px, 0.9fr); }
-.grid[data-layout="results-middle"] .col-results { order: 2; border-right: 1px solid var(--line); }
-.grid[data-layout="results-middle"] .col-agent { order: 3; border-right: 0; }
-@media (max-width: 1100px) { .grid[data-layout="results-middle"] { grid-template-columns: 1fr; } }
 
 /* =====================================================================
    Light theme: same design, daylight palette
@@ -651,3 +648,10 @@ html[data-text="l"] { font-size: 18px; }
   --ink: #e8ecee; --ink-2: #a1abb2; --ink-3: #6b757d; --surface: #13181c; --surface-2: #1a2026; --line-2: #313a42;
 }
 [data-theme="light"] .final { border-left-color: var(--paint); }
+
+/* ---------- resizable panels ---------- */
+.splitter { cursor: col-resize; background: var(--line); position: relative; touch-action: none; z-index: 5; }
+.splitter::after { content: ""; position: absolute; inset: 0 -4px; }  /* wider grab area */
+.splitter:hover, .splitter:focus-visible { background: var(--paint); outline: none; }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing .leaflet-container { pointer-events: none; }

@@ -1,14 +1,15 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AgentPanel, { type Turn } from "@/components/AgentPanel";
 import { evidenceFrom } from "@/components/EvidenceCards";
 import BuildingDrawer from "@/components/BuildingDrawer";
 import ResultsPanel, { type Results } from "@/components/ResultsPanel";
 import SettingsMenu from "@/components/SettingsMenu";
+import Splitter from "@/components/Splitter";
 import Stalls from "@/components/Stalls";
 import { api, askStream, usageColor, type AgentEvent, type Building, type Meta } from "@/lib/api";
-import { DEFAULTS, applySettings, loadSettings, resolveTheme, saveSettings, type Settings } from "@/lib/settings";
+import { DEFAULTS, DEFAULT_SIZES, MIN_SHARE, applySettings, loadSettings, loadSizes, resolveTheme, saveSettings, saveSizes, type PanelSizes, type Settings } from "@/lib/settings";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
@@ -38,6 +39,22 @@ export default function Page() {
     return () => mq.removeEventListener("change", follow);
   }, [settings]);
   const updateSettings = useCallback((s: Settings) => { setSettings(s); saveSettings(s); }, []);
+
+  // resizable panels: drag a divider to move width between the two panels beside it
+  const [sizes, setSizes] = useState<PanelSizes>(DEFAULT_SIZES);
+  const gridRef = useRef<HTMLElement>(null);
+  useEffect(() => { setSizes(loadSizes()); }, []);
+  const order: (keyof PanelSizes)[] = settings.layout === "results-middle" ? ["map", "results", "agent"] : ["map", "agent", "results"];
+  const resize = useCallback((left: keyof PanelSizes, right: keyof PanelSizes, dx: number) => {
+    const w = gridRef.current?.clientWidth || window.innerWidth;
+    setSizes((s) => {
+      const d = Math.max(MIN_SHARE - s[left], Math.min(s[right] - MIN_SHARE, dx / w));
+      const next = { ...s, [left]: s[left] + d, [right]: s[right] - d };
+      saveSizes(next);
+      return next;
+    });
+  }, []);
+  const resetSizes = useCallback(() => { setSizes(DEFAULT_SIZES); saveSizes(DEFAULT_SIZES); }, []);
   // buildings the latest answer showed as evidence cards: marked in the Watchlist table
   const shownInAnswer = useMemo(() => new Set<string>(turns.length ? evidenceFrom(turns[turns.length - 1].events, screen?.rows).map((e) => e.building_id) : []), [turns, screen]);
   const watchIds = useMemo(() => new Set<string>((screen?.rows ?? []).filter((r: any) => r.watch).map((r: any) => r.building_id)), [screen]);
@@ -128,16 +145,9 @@ export default function Page() {
     setSelected(id);
   }, [city]);
 
-  return (
-    <div className="shell">
-      <header className="topbar">
-        <h1 className="wordmark">Parallax</h1>
-        <p className="thesis">Parking lots as a live occupancy gauge: Vexcel aerial car counts against CoStar tenancies, Houston and LA, 2016 to 2026.</p>
-        <SettingsMenu settings={settings} onChange={updateSettings} />
-        {meta && <span className="mode">{meta.data_mode === "synthetic" ? "Synthetic data" : "Real Vexcel + CoStar data"}, {meta.agent_mode === "llm" ? "LLM planner" : "scripted planner"}</span>}
-      </header>
-
-      <main className="grid" data-layout={settings.layout}>
+  // a render function, not a component, so panels keep their state (and the map isn't rebuilt) on every render
+  const panel = (which: keyof PanelSizes) => {
+    if (which === "map") return (
         <section className="col" aria-label="Map">
           <div className="col-head">
             <h2>Lots by usage</h2>
@@ -161,16 +171,37 @@ export default function Page() {
           </div>
           {meta && <Stalls periods={meta.periods} index={pi} onChange={setPi} summary={summary} />}
         </section>
-
+    );
+    if (which === "agent") return (
         <section className="col col-agent" aria-label="Agent">
           <AgentPanel turns={turns} running={running} onAsk={ask} onPickBuilding={pickBuilding}
             onSeeWatchlist={() => setView("watchlist")} screenRows={screen?.rows} />
         </section>
-
+    );
+    return (
         <section className="col col-results" aria-label="Results">
           <ResultsPanel r={results} onPickBin={pickBin} onPickBuilding={pickBuilding} view={view} setView={setView} screen={screen}
             shownInAnswer={shownInAnswer} />
         </section>
+    );
+  };
+
+  return (
+    <div className="shell">
+      <header className="topbar">
+        <h1 className="wordmark">Parallax</h1>
+        <p className="thesis">Parking lots as a live occupancy gauge: Vexcel aerial car counts against CoStar tenancies, Houston and LA, 2016 to 2026.</p>
+        <SettingsMenu settings={settings} onChange={updateSettings} />
+        {meta && <span className="mode">{meta.data_mode === "synthetic" ? "Synthetic data" : "Real Vexcel + CoStar data"}, {meta.agent_mode === "llm" ? "LLM planner" : "scripted planner"}</span>}
+      </header>
+
+      <main className="grid" ref={gridRef}
+        style={{ gridTemplateColumns: order.map((k) => `minmax(260px, ${sizes[k]}fr)`).join(" 6px ") }}>
+        {order.map((k, n) => [
+          n > 0 && <Splitter key={`split-${k}`} label={`Resize ${order[n - 1]} and ${k} panels`}
+            onDrag={(dx) => resize(order[n - 1], k, dx)} onReset={resetSizes} />,
+          <Fragment key={k}>{panel(k)}</Fragment>,
+        ])}
       </main>
     </div>
   );

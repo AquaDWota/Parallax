@@ -19,6 +19,17 @@ function FlyTo({ selected, buildings }: { selected: string | null; buildings: Bu
   return null;
 }
 
+// the panel can be resized by dragging: tell Leaflet when its box changes so tiles fill it
+function FitToBox() {
+  const map = useMap();
+  useEffect(() => {
+    const ro = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+    ro.observe(map.getContainer());
+    return () => ro.disconnect();
+  }, [map]);
+  return null;
+}
+
 function Recenter({ city }: { city: string }) {
   const map = useMap();
   useEffect(() => {
@@ -43,6 +54,7 @@ export default function MapView({ city, buildings, selected, onSelect, watch, da
   const c = CENTERS[city] ?? CENTERS.Houston;
   return (
     <MapContainer center={[c[0], c[1]]} zoom={c[2]} preferCanvas scrollWheelZoom>
+      <FitToBox />
       {/* Keyless OpenStreetMap tiles, desaturated in CSS so the usage colors carry the map */}
       <TileLayer
         className="basemap"
