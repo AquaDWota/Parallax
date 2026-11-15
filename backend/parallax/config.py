@@ -45,6 +45,21 @@ BASELINE_RANGE = ("2016-01-01", "2020-03-01") if REAL else ("2018-01-01", "2020-
 PEER_BY_TYPE = not REAL
 # Real data: small lots make the index jumpy - require a baseline of at least this many cars.
 MIN_BASELINE_CARS = 8 if REAL else 0
+# Off-day filter: a photo is dropped as an off day (weekend / holiday / storm) when the lot is below
+# OFF_DAY_RATIO of its own usual fill AND the median neighbour in the same flight is too. Vexcel only
+# gives a flight's date range (median ~24 days), not the day each building was shot, so the
+# neighbours stand in for the calendar. Set PARALLAX_OFF_DAY=0 to switch it off and compare.
+OFF_DAY_FILTER = os.environ.get("PARALLAX_OFF_DAY", "1") == "1"
+# Calendar filter (runs first, when data/real/photo_dates.csv exists): Vexcel's raw-photo search gives
+# the exact day each building was shot. Measured on the real counts (cars vs the lot's usual):
+# weekdays 1.05x, Sundays 0.69x, Jan 1 0.50x, Saturdays 0.96x (offices ~normal, industrial/flex low).
+# So Sundays and federal holidays are dropped for every building, Saturdays only for SATURDAY_CLOSED.
+# Flights whose photos span different kinds of day ("mixed") or have no date fall through to the
+# neighbour check above. PARALLAX_CALENDAR=0 switches it off.
+CALENDAR_FILTER = os.environ.get("PARALLAX_CALENDAR", "1") == "1"
+SATURDAY_CLOSED = {"industrial", "flex"}
+OFF_DAY_RATIO = 0.5            # "low" = below half the lot's usual fill
+OFF_DAY_MIN_PEERS = 3          # neighbours needed in the same flight; fewer -> same-year fallback
 INDEX_CAP = 300.0
 DROP_THRESHOLD = 85.0          # index below this counts as a drop
 DROP_MIN_CAPTURES = 2          # ... only if it persists this many captures
