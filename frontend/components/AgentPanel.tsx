@@ -66,61 +66,77 @@ export default function AgentPanel({ turns, running, onAsk }: {
   onAsk: (q: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const end = useRef<HTMLDivElement>(null);
+  const conversation = useRef<HTMLDivElement>(null);
+  const followLatest = useRef(true);
+  useEffect(() => { followLatest.current = true; }, [turns.length]);
   useEffect(() => {
-    end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const node = conversation.current;
+    if (node && followLatest.current) node.scrollTop = node.scrollHeight;
   }, [turns]);
-
-  const last = turns[turns.length - 1];
-  const plan = last ? [...last.events].reverse().find((e) => e.type === "plan") : undefined;
+  const send = () => {
+    if (running || !q.trim()) return;
+    onAsk(q.trim());
+    setQ("");
+  };
 
   return (
     <>
-      <div className="col-head">
-        <h2>Agent reasoning</h2>
+      <div className="col-head chat-heading">
+        <div><h2>Ask Parallax</h2><p>Explore the results in conversation.</p></div>
+        <span className="chat-status" role="status">{running ? "Analyzing..." : "Ready"}</span>
       </div>
-      <div className="col-body" aria-live="polite">
+      <div className="col-body chat-messages" ref={conversation} role="log" aria-label="Conversation with Parallax" aria-live="polite"
+        onScroll={() => { const node = conversation.current; if (node) followLatest.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80; }}>
         {!turns.length && (
-          <div className="empty">
-            <p>Ask how parking relates to tenants: occupancy, sharp drops, lease renewals. The agent plans the
-              analysis, runs it on every measurable building, and shows what it excluded and why.</p>
+          <div className="chat-welcome">
+            <strong>What would you like to understand?</strong>
+            <p>Ask about a city, a building, or a result. Charts and tables update in the larger Results panel.</p>
           </div>
         )}
-        {plan && plan.type === "plan" && running && (
-          <ul className="plan" aria-label="Plan">
-            {plan.todos.map((t, i) => (
-              <li key={i} data-s={t.status}><span className="tick" />{t.content}</li>
-            ))}
-          </ul>
-        )}
-        <div className="log">
-          {turns.map((t, ti) => (
-            <Fragment key={ti}>
-              <p className="q">{t.question}</p>
-              {t.events.map((e, i) => {
-                if (e.type === "step")
-                  return <div key={i} className="step"><b>{e.agent.replace(/-/g, " ")}</b> {TOOL_LABEL[e.tool] ?? e.tool}{describeArgs(e.args)}</div>;
-                if (e.type === "note") return <p key={i} className="note">{e.text}</p>;
-                if (e.type === "error") return <p key={i} className="note err">{e.text}</p>;
-                if (e.type === "final") return <Note key={i} md={e.text} />;
-                return null;
-              })}
-            </Fragment>
-          ))}
-          <div ref={end} />
-        </div>
+        {turns.map((turn, index) => {
+          const answer = [...turn.events].reverse().find((event) => event.type === "final");
+          const errors = turn.events.filter((event) => event.type === "error");
+          const active = running && index === turns.length - 1;
+          const steps = turn.events.filter((event) => event.type === "step" || event.type === "note" || event.type === "plan");
+          return (
+            <div className="chat-turn" key={index}>
+              <div className="chat-message from-user"><span className="message-author">You</span><p>{turn.question}</p></div>
+              <div className="chat-message from-assistant">
+                <span className="message-author">Parallax</span>
+                {answer && answer.type === "final" ? <Note md={answer.text} /> :
+                  active ? <p className="chat-thinking" role="status">Checking the data and updating your results...</p> :
+                  !errors.length ? <p>The analysis is complete. See the updated results.</p> : null}
+                {errors.map((error, errorIndex) => error.type === "error" && <p className="chat-error" role="alert" key={errorIndex}>{error.text}</p>)}
+                {steps.length > 0 && (
+                  <details className="chat-steps">
+                    <summary>{active ? "View analysis progress" : "View analysis steps"}</summary>
+                    {steps.map((event, stepIndex) => {
+                      if (event.type === "step") return <p key={stepIndex}>{TOOL_LABEL[event.tool] ?? event.tool}{describeArgs(event.args)}</p>;
+                      if (event.type === "note") return <p key={stepIndex}>{event.text}</p>;
+                      if (event.type === "plan") return <ul key={stepIndex}>{event.todos.map((todo, todoIndex) => <li key={todoIndex}>{todo.content} ({todo.status.replace(/_/g, " ")})</li>)}</ul>;
+                      return null;
+                    })}
+                  </details>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <div className="ask">
-        <div className="suggest">
-          {SUGGESTIONS.filter((s) => !turns.some((t) => t.question === s)).slice(0, 4).map((s) => (
-            <button key={s} type="button" disabled={running} onClick={() => onAsk(s)}>{s}</button>
+      <div className="ask chat-composer">
+        <div className="suggest" aria-label="Suggested questions">
+          {SUGGESTIONS.filter((suggestion) => !turns.some((turn) => turn.question === suggestion)).slice(0, turns.length ? 2 : 3).map((suggestion) => (
+            <button key={suggestion} type="button" disabled={running} onClick={() => onAsk(suggestion)}>{suggestion}</button>
           ))}
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) { onAsk(q.trim()); setQ(""); } }}>
-          <label htmlFor="ask" style={{ position: "absolute", left: -9999 }}>Question</label>
-          <input id="ask" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Only retail in Houston, without 2020-21?" />
-          <button type="submit" disabled={running || !q.trim()}>{running ? "Working" : "Ask"}</button>
+        <form onSubmit={(event) => { event.preventDefault(); send(); }}>
+          <label htmlFor="ask" className="visually-hidden">Ask a question about the results</label>
+          <textarea id="ask" rows={2} value={q} onChange={(event) => setQ(event.target.value)}
+            placeholder="Ask about these results..."
+            onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} />
+          <button type="submit" disabled={running || !q.trim()} aria-label="Send question">{running ? "Working..." : "Send"}</button>
         </form>
+        <p className="composer-hint">Enter to send. Shift + Enter for a new line.</p>
       </div>
     </>
   );

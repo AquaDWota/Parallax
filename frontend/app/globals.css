@@ -227,3 +227,179 @@ button, input { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* Plain-language metric definitions and neutral activity scale */
+.parking-guide { margin: 0.5rem 0 1rem; padding: 0.8rem; border: 1px solid var(--rule); border-radius: 5px; background: #f2f6f8; color: #263641; }
+.parking-guide summary { cursor: pointer; font-weight: 650; }
+.parking-guide summary:focus-visible { outline: 2px solid #356e99; outline-offset: 4px; }
+.parking-guide p, .metric-example, .chart-key { font-size: 0.85rem; line-height: 1.55; }
+.parking-guide p:last-child { margin-bottom: 0; }
+.parking-scale { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.parking-scale div { padding: 0.5rem; background: white; border: 1px solid #d3dde4; border-radius: 3px; }
+.parking-scale dt { font-size: 1.1rem; font-weight: 700; }
+.parking-scale dd { margin: 0; font-size: 0.75rem; line-height: 1.4; }
+.metric-example { background: #f2f6f8; border-left: 3px solid #356e99; padding: 0.65rem 0.75rem; }
+.chart-key { color: #33454f; }
+.legend { max-width: min(300px, calc(100% - 1.5rem)); }
+.legend .ramp { width: 100%; }
+.legend .ends { gap: 0.6rem; font-size: 0.7rem; }
+.legend-note { margin-top: 0.4rem; line-height: 1.4; color: #33454f; }
+
+/* Concise results: show the example and statistics, expand technical context on demand. */
+.result-takeaway { font-size: 1rem; font-weight: 600; line-height: 1.5; margin: 0.5rem 0; }
+.simple-example { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; margin: 0.75rem 0; }
+.simple-example > div { padding: 0.75rem; background: #f2f6f8; border: 1px solid #d3dde4; border-radius: 4px; }
+.simple-example span, .simple-example small { display: block; font-size: 0.75rem; line-height: 1.5; color: #33454f; }
+.simple-example strong { display: block; font-size: 1.3rem; margin: 0.25rem 0; }
+.result-statistics { font-size: 0.8rem; line-height: 1.6; margin: 0.6rem 0; color: #263641; }
+.result-details { margin-top: 0.65rem; }
+.result-details summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; }
+.result-details summary:focus-visible { outline: 2px solid #356e99; outline-offset: 3px; }
+.simple-caption { text-align: left; font-size: 0.8rem; line-height: 1.5; margin-bottom: 0.4rem; }
+
+/* Results-first workspace: large findings pane, map and chat alongside. */
+.grid { grid-template-columns: minmax(560px, 1.8fr) minmax(360px, 1fr); grid-template-rows: minmax(270px, 0.43fr) minmax(290px, 0.57fr); grid-template-areas: "results map" "results chat"; gap: 0; }
+.results-column { grid-area: results; border-right: 1px solid var(--rule) !important; background: #f8fafb; }
+.map-column { grid-area: map; border-right: 0; border-bottom: 1px solid var(--rule); }
+.chat-column { grid-area: chat; border-right: 0; background: #f0f4f7; }
+.results-column > .col-head { padding: 1rem 1.5rem 0.75rem; }
+.results-column > .col-head h2 { font-size: 1.5rem; }
+.results-column > .col-body { padding: 0 1.5rem 1.5rem; }
+.results-column .chart { max-width: 850px; margin-inline: auto; }
+.chat-heading { align-items: center; }
+.chat-heading p { margin: 0.1rem 0 0; font-size: 0.75rem; color: #52616b; }
+.chat-status { font-size: 0.7rem; color: #395563; background: white; padding: 0.2rem 0.5rem; border-radius: 20px; }
+.chat-messages { padding: 0.5rem 1rem 1rem; overscroll-behavior: contain; }
+.chat-welcome { padding: 1rem; color: #33454f; }
+.chat-welcome p { margin-bottom: 0; font-size: 0.85rem; line-height: 1.6; }
+.chat-turn { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1rem; }
+.chat-message { max-width: 96%; padding: 0.7rem 0.85rem; border-radius: 12px; font-size: 0.85rem; line-height: 1.6; overflow-wrap: anywhere; }
+.chat-message > p { margin: 0.3rem 0 0; white-space: pre-wrap; }
+.from-user { align-self: flex-end; background: #244d68; color: white; border-bottom-right-radius: 3px; }
+.from-assistant { align-self: flex-start; background: white; border: 1px solid #d5dfe5; border-bottom-left-radius: 3px; }
+.message-author { display: block; font-size: 0.7rem; font-weight: 700; opacity: 0.8; }
+.chat-message .final { margin: 0; padding: 0; background: none; border: 0; font-size: inherit; }
+.chat-message .final p { margin: 0.4rem 0; }
+.chat-message .final h3 { font-size: 1rem; margin: 0.5rem 0; }
+.chat-thinking { color: #52616b; }
+.chat-error { color: #923a30; }
+.chat-steps { margin-top: 0.55rem; border-top: 1px solid #d5dfe5; padding-top: 0.4rem; font-size: 0.75rem; color: #52616b; }
+.chat-steps summary { cursor: pointer; }
+.chat-steps p { margin: 0.4rem 0; }
+.chat-composer { background: #f8fafb; border-top: 1px solid var(--rule); padding: 0.65rem 1rem; }
+.chat-composer .suggest { gap: 0.3rem; margin-bottom: 0.5rem; }
+.chat-composer .suggest button { border-radius: 8px; text-align: left; font-size: 0.72rem; }
+.chat-composer form { display: flex; align-items: flex-end; gap: 0.5rem; }
+.chat-composer textarea { flex: 1; width: 100%; min-width: 0; max-height: 130px; resize: vertical; padding: 0.65rem; border: 1px solid #9aaebc; border-radius: 9px; background: white; font: inherit; font-size: 0.85rem; color: #263641; }
+.chat-composer button[type="submit"] { border: 0; background: #244d68; color: white; border-radius: 8px; padding: 0.65rem 0.8rem; cursor: pointer; }
+.chat-composer button:disabled { opacity: 0.55; cursor: not-allowed; }
+.composer-hint { margin: 0.3rem 0 0; font-size: 0.65rem; color: #52616b; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 480px 620px; grid-template-areas: "results" "map" "chat"; }
+  .results-column { border-right: 0 !important; }
+  .results-column > .col-body { overflow: visible; }
+  .map-column .mapwrap { min-height: 260px; }
+  .topbar { flex-wrap: wrap; }
+}
+
+/* Keep the map's former one-third share; results take the other two-thirds. */
+.grid { grid-template-columns: minmax(380px, 1.15fr) minmax(0, 1.9fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "map results"; }
+.map-column { border-right: 1px solid var(--rule); border-bottom: 0; }
+.results-column { position: relative; border-right: 0 !important; }
+.results-column > .col-head { padding-right: 12rem; }
+.chat-launcher { position: absolute; top: 0.8rem; right: 1rem; z-index: 2; background: #244d68; color: white; border: 0; border-radius: 7px; padding: 0.45rem 0.7rem; cursor: pointer; font-size: 0.8rem; }
+.chat-column { position: fixed; right: 1rem; bottom: 1rem; width: min(420px, calc(100vw - 2rem)); height: min(650px, calc(100dvh - 5rem)); z-index: 1100; border: 1px solid #bdcbd5; border-radius: 12px; box-shadow: 0 12px 45px #20374440; overflow: hidden; }
+.chat-column[hidden] { display: none; }
+.chat-column .chat-heading { padding-top: 2.2rem; }
+.close-chat { position: absolute; top: 0.45rem; right: 0.7rem; border: 0; border-radius: 4px; background: #e2eaf0; color: #263641; padding: 0.2rem 0.5rem; font-size: 0.75rem; cursor: pointer; z-index: 2; }
+@media (max-width: 1100px) {
+  .grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 480px auto; grid-template-areas: "map" "results"; }
+  .map-column { border-right: 0; border-bottom: 1px solid var(--rule); }
+}
+@media (max-width: 480px) {
+  .results-column > .col-head { padding-right: 1.5rem; padding-top: 3.4rem; }
+  .chat-column { bottom: 0.5rem; right: 0.5rem; width: calc(100vw - 1rem); height: min(650px, calc(100dvh - 1rem)); }
+}
+
+/* Selected year stays prominent above the map, outside Leaflet overlays. */
+.map-year-bar { display: flex; align-items: center; justify-content: center; gap: 0.75rem; flex: none; padding: 0.55rem 1rem; background: #244d78; color: #ffffff; }
+.map-year-caption { font-size: 0.8rem; font-weight: 500; }
+.map-year-bar strong { color: #ffffff; font-size: 1.65rem; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+
+/* The blue map bar is the single selected-year heading. */
+.stall-caption { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.stall-caption > span { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
+.stall-caption .play { flex: none; }
+.map-year-bar { justify-content: center; }
+
+/* Interactive occupancy/car diagnostics; textual counts accompany each plot. */
+.explorer-tabs { display:flex; gap:.35rem; flex-wrap:wrap; margin:.75rem 0; }
+.explorer-tabs button { border:1px solid #bdccd6; background:white; border-radius:6px; padding:.45rem .6rem; cursor:pointer; font-size:.8rem; }
+.explorer-tabs button[aria-selected="true"] { background:#244d68; color:white; border-color:#244d68; }
+.explorer-controls { display:flex; flex-wrap:wrap; gap:.7rem; align-items:center; margin:.75rem 0; font-size:.8rem; }
+.explorer-controls label { display:flex; align-items:center; gap:.3rem; }
+.occupancy-explorer select { font:inherit; padding:.35rem; max-width:100%; color:#263641; background:white; border:1px solid #aebfc9; border-radius:4px; }
+.explorer-count,.explorer-check { font-size:.78rem; line-height:1.55; color:#415360; }
+.explorer-select { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; font-size:.8rem; margin:.5rem 0; }
+.explorer-select select { min-width:0; flex:1; }
+.occupancy-series { max-height:240px; }
+.explorer-table { overflow-x:auto; }
+.mismatch-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; margin:.75rem 0; }
+.mismatch-card { padding:.8rem; border:1px solid #cbd9e2; border-radius:6px; background:white; }
+.mismatch-card h4 { margin:0; font-size:.95rem; }
+.mismatch-card > p { font-size:.78rem; }
+.mismatch-card img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:3px; }
+.mismatch-card dl { font-size:.78rem; }
+.mismatch-card dl div { display:flex; justify-content:space-between; gap:.5rem; margin:.3rem 0; }
+.mismatch-card dd { margin:0; font-weight:650; }
+@media (max-width:600px) { .mismatch-grid { grid-template-columns:1fr; } }
+
+/* Brand lockup: fixed icon spacing and wrapping keep the header readable. */
+.topbar {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) minmax(150px, 220px);
+  align-items: center;
+  column-gap: clamp(1.25rem, 2.5vw, 2.5rem);
+  row-gap: 0.65rem;
+  padding: 0.9rem 1.5rem;
+}
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: #000;
+  font-family: var(--body);
+  font-size: 1.65rem;
+  font-weight: 700;
+  font-kerning: normal;
+  letter-spacing: 0.025em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.brand-squirrel { width: 2.6rem; height: 2.3rem; flex: none; }
+.topbar .thesis { min-width: 0; max-width: 72ch; font-size: 0.9rem; line-height: 1.5; letter-spacing: 0.012em; }
+.topbar .mode { margin-left: 0; text-align: right; font-size: 0.78rem; line-height: 1.5; letter-spacing: 0.02em; }
+@media (max-width: 1050px) {
+  .topbar { grid-template-columns: max-content minmax(0, 1fr); }
+  .topbar .mode { grid-column: 2; text-align: left; }
+}
+@media (max-width: 640px) {
+  .topbar { grid-template-columns: minmax(0, 1fr); padding: 0.85rem 1rem; }
+  .topbar .mode { grid-column: 1; }
+  .wordmark { font-size: 1.5rem; }
+}
+
+.brand-squirrel { width: 3rem; height: 2.7rem; overflow: visible; }
+
+/* Give the Nassau Hall mascot and its speech bubble their own space. */
+.wordmark { gap: 0.8rem; }
+.brand-squirrel { width: 10.5rem; height: 5.25rem; flex: none; }
+@media (max-width: 1050px) {
+  .topbar { grid-template-columns: minmax(0, 1fr); }
+  .topbar .mode { grid-column: 1; }
+}
+@media (max-width: 400px) {
+  .wordmark { gap: 0.5rem; font-size: 1.35rem; }
+  .brand-squirrel { width: 9rem; height: 4.5rem; }
+}

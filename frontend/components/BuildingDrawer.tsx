@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, activityMultiple } from "@/lib/api";
 import { Spark } from "./charts";
 
 export default function BuildingDrawer({ id, onClose }: { id: string; onClose: () => void }) {
@@ -44,11 +44,11 @@ export default function BuildingDrawer({ id, onClose }: { id: string; onClose: (
         <div className="thenNow">
           <figure>
             <img src={api.imageUrl(b.building_id, first.capture_id)} alt={`Lot on ${first.date}, ${first.cars} cars`} />
-            <figcaption>{first.date}: {first.cars} cars{first.index != null ? `, usage ${first.index}` : ""}</figcaption>
+            <figcaption>{first.date}: {first.cars} cars{first.index != null ? `, relative activity ${activityMultiple(first.index, 2)} (peer-adjusted)` : ""}</figcaption>
           </figure>
           <figure>
             <img src={api.imageUrl(b.building_id, now.capture_id)} alt={`Lot on ${now.date}, ${now.cars} cars`} />
-            <figcaption>{now.date}: {now.cars} cars{now.index != null ? `, usage ${now.index}` : ""}
+            <figcaption>{now.date}: {now.cars} cars{now.index != null ? `, relative activity ${activityMultiple(now.index, 2)} (peer-adjusted)` : ""}
               {!pick && lastExit && now === auto ? `, before ${lastExit.tenant} left` : ""}</figcaption>
           </figure>
         </div>
@@ -68,7 +68,7 @@ export default function BuildingDrawer({ id, onClose }: { id: string; onClose: (
       )}
 
       {!garage && <Spark history={b.history} leases={b.leases} />}
-      {!garage && <p className="sub">Usage vs. neighbours as % of the pre-COVID level. Red lines: a tenant left or shrank. Blue: renewed.</p>}
+      {!garage && <p className="sub">Relative parking activity (peer-adjusted): 1x is the pre-COVID reference. This is not percent of spaces filled. Red lines mark inferred move-out/downsizing outcomes; blue marks inferred renewal.</p>}
 
       <table className="leases">
         <thead><tr><th>Tenant</th><th>Sq ft</th><th>Expiry</th><th>Outcome</th></tr></thead>

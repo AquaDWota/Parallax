@@ -38,7 +38,6 @@ export default function Stalls({ periods, index, onChange, summary }: {
   return (
     <div className="stalls">
       <div className="stall-caption">
-        <strong>{m ? `${MONTH[m] ?? m} ${y}` : y}</strong>
         <span>{summary}</span>
         <button
           className="play"

@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from "react-leaflet";
 import type { Building } from "@/lib/api";
-import { usageColor } from "@/lib/api";
+import { usageColor, activityMultiple } from "@/lib/api";
 
 const CENTERS: Record<string, [number, number, number]> = {
   Houston: [29.82, -95.55, 10],
@@ -58,8 +58,8 @@ export default function MapView({ city, buildings, selected, onSelect }: {
               <br />
               {garage ? "Garage parking: not measurable from above" :
                 b.abs_index == null ? `No usable capture (${b.status.replace("_", " ")})` :
-                `Lot ${b.abs_index.toFixed(0)}% as full as before COVID` +
-                (b.index != null ? `; ${b.index.toFixed(0)} vs. neighbours` : "")}
+                `Parking activity: ${activityMultiple(b.abs_index, 2)} its pre-COVID reference (1x = reference)` +
+                (b.index != null ? `; adjusted for nearby properties: ${activityMultiple(b.index, 2)}` : "")}
             </Tooltip>
           </CircleMarker>
         );

@@ -1,6 +1,6 @@
 "use client";
 import type { Bin } from "@/lib/api";
-import { usageColor } from "@/lib/api";
+import { usageColor, activityMultiple } from "@/lib/api";
 
 const W = 420;
 
@@ -27,7 +27,7 @@ export function BinsChart({ bins, onPick }: { bins: Bin[]; onPick?: (b: Bin) => 
         const w = bw * 0.64;
         return (
           <g key={b.bin} className="bar" tabIndex={onPick ? 0 : -1} role={onPick ? "button" : undefined}
-            aria-label={`Usage ${b.usage_min}-${b.usage_max}: ${Math.round(b.renewal_rate * 100)}% renewed, n=${b.n}. Show examples.`}
+            aria-label={`Activity ${activityMultiple(b.usage_min)} to ${activityMultiple(b.usage_max)}: ${Math.round(b.renewal_rate * 100)}% renewed, n=${b.n}. Show examples.`}
             onClick={() => onPick?.(b)} onKeyDown={(e) => { if (e.key === "Enter") onPick?.(b); }}>
             <rect className="fill" x={x} y={y(b.renewal_rate)} width={w} height={y(min) - y(b.renewal_rate)}
               fill={usageColor(b.usage_median)} stroke="#2b2f33" strokeOpacity={0.25} />
@@ -37,12 +37,12 @@ export function BinsChart({ bins, onPick }: { bins: Bin[]; onPick?: (b: Bin) => 
             <text x={x + w / 2} y={y(b.ci_high) - 5} textAnchor="middle" style={{ fill: "#2b2f33", fontWeight: 600 }}>
               {Math.round(b.renewal_rate * 100)}%
             </text>
-            <text x={x + w / 2} y={H - bottom + 16} textAnchor="middle">{Math.round(b.usage_median)}</text>
+            <text x={x + w / 2} y={H - bottom + 16} textAnchor="middle">{activityMultiple(b.usage_median, 2)}</text>
           </g>
         );
       })}
       <text x={left + (W - left) / 2} y={H - 6} textAnchor="middle">
-        Parking usage before expiry (median, % of pre-COVID level)
+        Peer-adjusted activity before expiry (x reference)
       </text>
     </svg>
   );
@@ -58,7 +58,7 @@ export function LeadChart({ leads }: { leads: { lead_months: number; window: str
   const y = (v: number) => top + (H - top - bottom) * ((v - lo) / (hi - lo));
   const step = (W - left) / rows.length;
   return (
-    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Odds ratio of renewal per 10-point usage drop, by lead time">
+    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Odds ratio of renewal per 0.1x drop in relative activity, by lead time">
       <line x1={left} x2={W} y1={y(1)} y2={y(1)} stroke="#a7afb4" strokeDasharray="4 3" />
       <text x={left - 6} y={y(1) + 4} textAnchor="end">1.0</text>
       <text x={left - 6} y={y(lo) + 10} textAnchor="end">{lo.toFixed(2)}</text>
@@ -94,7 +94,7 @@ export function RegionalChart({ series, metric }: { series: SeriesRow[]; metric:
     Houston: { stroke: "#2b2f33" },
     "Los Angeles": { stroke: "#c4861c", dash: "6 3" },
   };
-  const fmt = (v: number) => (metric === "usage_index" ? v.toFixed(0) : `${Math.round(v * 100)}%`);
+  const fmt = (v: number) => (metric === "usage_index" ? activityMultiple(v, 2) : `${Math.round(v * 100)}%`);
   const covidX0 = halves.includes("2020-H1") ? x("2020-H1") : null;
   const covidX1 = halves.includes("2021-H2") ? x("2021-H2") : null;
   return (
@@ -105,7 +105,7 @@ export function RegionalChart({ series, metric }: { series: SeriesRow[]; metric:
       {metric === "usage_index" && lo < 100 && hi > 100 && (
         <>
           <line x1={left} x2={W - 70} y1={y(100)} y2={y(100)} stroke="#a7afb4" strokeDasharray="4 3" />
-          <text x={left - 6} y={y(100) + 4} textAnchor="end">100</text>
+          <text x={left - 6} y={y(100) + 4} textAnchor="end">1x</text>
         </>
       )}
       {cities.map((c) => {
@@ -149,7 +149,7 @@ export function Spark({ history, leases }: {
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Usage history">
       <line x1={left} x2={W} y1={y(100)} y2={y(100)} stroke="#a7afb4" strokeDasharray="4 3" />
-      <text x={left - 5} y={y(100) + 4} textAnchor="end">100</text>
+      <text x={left - 5} y={y(100) + 4} textAnchor="end">1x</text>
       {exp.map((l, i) => (
         <g key={i}>
           <line x1={x(l.expiry)} x2={x(l.expiry)} y1={top} y2={H - bottom}
@@ -179,11 +179,11 @@ export function OccBinsChart({ bins }: { bins: { label: string; n: number; occ_d
   const ticks = [-40, -20, -10, 0, 10, 20, 40].filter((t) => t >= lo && t <= hi);
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img"
-      aria-label={`Parking usage vs building's usual level, by occupancy: ${bins.map((b) => `${b.label} ${b.usage_dev}`).join(", ")}`}>
+      aria-label={`Parking index minus building study mean, grouped by occupancy difference: ${bins.map((b) => `${b.label} ${b.usage_dev}`).join(", ")}`}>
       {ticks.map((t) => (
         <g key={t}>
           <line x1={left} x2={W} y1={y(t)} y2={y(t)} stroke={t === 0 ? "#a7afb4" : "#e3e7e9"} />
-          <text x={left - 6} y={y(t) + 4} textAnchor="end">{t > 0 ? `+${t}` : t}</text>
+          <text x={left - 6} y={y(t) + 4} textAnchor="end">{t > 0 ? "+" : ""}{activityMultiple(t, 2)}</text>
         </g>
       ))}
       {bins.map((b, i) => {
@@ -195,14 +195,14 @@ export function OccBinsChart({ bins }: { bins: { label: string; n: number; occ_d
               fill={b.usage_dev < 0 ? "#3f6e9a" : "#c4861c"} opacity={0.9} />
             <line x1={x + w / 2} x2={x + w / 2} y1={y(b.ci_low)} y2={y(b.ci_high)} stroke="#2b2f33" strokeWidth={1.5} />
             <text x={x + w / 2 + 8} y={b.usage_dev < 0 ? y1 - 4 : y1 + 13} textAnchor="start" style={{ fill: "#2b2f33", fontWeight: 600 }}>
-              {b.usage_dev > 0 ? "+" : ""}{b.usage_dev}
+              {b.usage_dev > 0 ? "+" : ""}{activityMultiple(b.usage_dev, 2)}
             </text>
             <text x={x + w / 2} y={H - bottom + 16} textAnchor="middle">{b.label}</text>
             <text x={x + w / 2} y={H - bottom + 29} textAnchor="middle">n={b.n}</text>
           </g>
         );
       })}
-      <text x={left + (W - left) / 2} y={H - 4} textAnchor="middle">Occupancy vs the building's own average (CoStar)</text>
+      <text x={left + (W - left) / 2} y={H - 4} textAnchor="middle">Occupancy minus building mean (percentage points)</text>
     </svg>
   );
 }
@@ -226,7 +226,7 @@ export function OffsetChart({ offsets }: { offsets: { offset_months: number; coe
           <g key={r.offset_months}>
             <line x1={cx} x2={cx} y1={y(r.ci_low!)} y2={y(r.ci_high!)} stroke="#2b2f33" strokeWidth={1.5} />
             <circle cx={cx} cy={y(r.coef_per_10pt!)} r={5} fill={sig ? "#f2c230" : "#ffffff"} stroke="#2b2f33" strokeWidth={1.5} />
-            <text x={cx + 9} y={y(r.coef_per_10pt!) + 4}>{r.coef_per_10pt! > 0 ? "+" : ""}{r.coef_per_10pt!.toFixed(1)}</text>
+            <text x={cx + 9} y={y(r.coef_per_10pt!) + 4}>{r.coef_per_10pt! > 0 ? "+" : ""}{activityMultiple(r.coef_per_10pt!, 3)}</text>
             <text x={cx} y={H - bottom + 16} textAnchor="middle">
               {r.offset_months === 0 ? "at capture" : `${r.offset_months > 0 ? "+" : ""}${r.offset_months} mo`}
             </text>

@@ -18,3 +18,10 @@ frontend/.next/
 # Private concept-review PDF and its intermediate transcript/render files
 /output/pdf/lease-analysis-complete-report.pdf
 /tmp/pdfs/
+
+# TypeScript incremental compiler cache
+*.tsbuildinfo
+
+# Local diagnostic snapshots and licensed aerial crops
+/frontend/public/occupancy-visuals.json
+/frontend/public/occupancy-case-images/

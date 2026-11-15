@@ -63,11 +63,11 @@ export const api = {
 };
 
 /** POST a question and stream server-sent events back. */
-export async function askStream(question: string, onEvent: (e: AgentEvent) => void, signal?: AbortSignal) {
+export async function askStream(question: string, onEvent: (e: AgentEvent) => void, signal?: AbortSignal, history?: { role: "user" | "assistant"; content: string }[]) {
   const r = await fetch("/api/ask", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, history }),
     signal,
   });
   if (!r.ok || !r.body) throw new Error(`ask failed: ${r.status}`);
@@ -117,3 +117,8 @@ export function usageColor(v: number | null | undefined): string {
 }
 
 export const pct = (v: number | null | undefined, d = 0) => (v == null ? "n/a" : `${(v * 100).toFixed(d)}%`);
+
+/** Display-only conversion: API index 100 is reference activity 1x. */
+export function activityMultiple(index: number, digits = 3): string {
+  return Number.isFinite(index) ? `${Number((index / 100).toFixed(digits))}x` : "Unavailable";
+}

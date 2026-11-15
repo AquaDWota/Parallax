@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
+import ParkingGuide from "./ParkingGuide";
+import OccupancyExplorer from "./OccupancyExplorer";
 import type { Bin } from "@/lib/api";
-import { pct } from "@/lib/api";
+import { pct, activityMultiple } from "@/lib/api";
 import { BinsChart, LeadChart, OccBinsChart, OffsetChart, RegionalChart } from "./charts";
 
 export type Results = {
@@ -45,54 +47,72 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
     <>
       <div className="col-head"><h2>Results</h2></div>
       <div className="col-body">
+        <ParkingGuide baselineMethod="mean" />
+        <OccupancyExplorer />
         {r.occLink?.bins?.length > 0 && (
           <section className="result">
-            <h3>Parking tracks occupancy</h3>
-            <p className="sub">{sliceLabel(r.occLink.filters)}. {r.occLink.n_buildings} buildings, {r.occLink.n.toLocaleString()} captures.
-              Each bar compares a building with itself: lot usage vs its usual level, when CoStar shows it fuller or emptier than usual.</p>
-            <p style={{ margin: "0 0 0.5rem" }}>
-              <span className="headline-num">{r.occLink.usage_pts_per_10pt_occupancy > 0 ? "+" : ""}{r.occLink.usage_pts_per_10pt_occupancy.toFixed(1)}</span> usage
-              points for every 10 points of occupancy, in the same building.
+            <h3>Parking and occupied space</h3>
+            <p className="sub">{r.occLink.n_buildings} buildings - {r.occLink.n.toLocaleString()} photos. {sliceLabel(r.occLink.filters)}.</p>
+            <p className="result-takeaway">
+              {r.occLink.ci_low <= 0 && r.occLink.ci_high >= 0
+                ? "The estimated relationship is uncertain."
+                : r.occLink.usage_pts_per_10pt_occupancy > 0
+                  ? "More occupied space is associated with higher parking activity."
+                  : "More occupied space is associated with lower parking activity."}
             </p>
-            <OccBinsChart bins={r.occLink.bins} />
-            <p className="sub" style={{ marginTop: "0.5rem" }}>
-              95% CI {r.occLink.ci_low.toFixed(1)} to {r.occLink.ci_high.toFixed(1)}, p={r.occLink.p_value < 0.001 ? "<0.001" : r.occLink.p_value.toFixed(3)}.
-              {r.occLink.placebo ? ` Placebo (usage shuffled across buildings): ${r.occLink.placebo.placebo_mean}, ${r.occLink.placebo.passed ? "passed" : "failed"}.` : ""}
+            <div className="simple-example" role="group" aria-label="Illustration of the estimated association">
+              <div><span>Occupied space</span><strong>60% to 70%</strong><small>10 percentage points higher</small></div>
+              <div><span>Relative parking activity</span><strong>1x to {activityMultiple(100 + r.occLink.usage_pts_per_10pt_occupancy)}</strong><small>1x = pre-COVID reference</small></div>
+            </div>
+            <p className="sub">Illustration of the model estimate, not a forecast. Multiples show relative activity, not cars or the percentage of spaces filled.</p>
+            <p className="result-statistics">
+              Estimated change: {r.occLink.usage_pts_per_10pt_occupancy > 0 ? "+" : ""}{activityMultiple(r.occLink.usage_pts_per_10pt_occupancy)} of the reference activity.
+              {" "}95% CI: {activityMultiple(r.occLink.ci_low, 4)} to {activityMultiple(r.occLink.ci_high, 4)}.
+              {" "}p {r.occLink.p_value < 0.001 ? "< 0.001" : `= ${r.occLink.p_value.toFixed(3)}`}.
             </p>
+            <details className="result-details">
+              <summary>View chart and calculation details</summary>
+              <p className="sub">The model compares each building with itself and adjusts for year. Bars compare parking and occupancy with that building&apos;s study average (mean). Zero means average. A change of +0.1x is one tenth of the pre-COVID reference activity, not 10% above the study average. Whiskers show 95% intervals.</p>
+              <OccBinsChart bins={r.occLink.bins} />
+              {r.occLink.placebo && <p className="sub">Shuffled-data check: {r.occLink.placebo.passed ? "passed" : "did not pass"}. Shuffled estimate: {activityMultiple(r.occLink.placebo.placebo_mean)}.</p>}
+            </details>
           </section>
         )}
 
         {r.occDrop?.n_drops && (
           <section className="result">
-            <h3>After a lot empties sharply</h3>
-            <p className="sub">Occupancy change by the next capture, for lots that fell more than {Math.abs(r.occDrop.threshold)} points vs all others.</p>
+            <h3>After a large drop in parking activity</h3>
+            <p className="sub">Relative parking activity fell by more than {activityMultiple(Math.abs(r.occDrop.threshold))} of its reference between two photos. Example: 1x to {activityMultiple(100 - Math.abs(r.occDrop.threshold) - 1)}.</p>
+            <p className="sub"><strong>Large does not mean fast.</strong> Photos can be months or years apart.</p>
             <table className="groups">
+              <caption className="simple-caption">Average change in occupied space by the following photo</caption>
               <tbody>
-                <tr><td>Lot fell sharply ({r.occDrop.n_drops})</td><td className="num">{r.occDrop.occ_change_after_drop > 0 ? "+" : ""}{r.occDrop.occ_change_after_drop} pts</td></tr>
-                <tr><td>All other captures ({r.occDrop.n_rest})</td><td className="num">{r.occDrop.occ_change_otherwise > 0 ? "+" : ""}{r.occDrop.occ_change_otherwise} pts</td></tr>
-                <tr><td>Difference</td><td className="num">{r.occDrop.difference} pts (p={r.occDrop.p_value.toFixed(2)})</td></tr>
+                <tr><td>After large drops ({r.occDrop.n_drops} comparisons)</td><td className="num">{r.occDrop.occ_change_after_drop > 0 ? "+" : ""}{r.occDrop.occ_change_after_drop} percentage points</td></tr>
+                <tr><td>After other changes ({r.occDrop.n_rest})</td><td className="num">{r.occDrop.occ_change_otherwise > 0 ? "+" : ""}{r.occDrop.occ_change_otherwise} percentage points</td></tr>
+                <tr><td>Difference between groups</td><td className="num">{r.occDrop.difference} percentage points</td></tr>
               </tbody>
             </table>
+            <p className="result-statistics">p = {r.occDrop.p_value.toFixed(3)}. Observed comparison, not proof that parking changes caused occupancy changes.</p>
           </section>
         )}
 
         {r.occLead?.offsets && (
           <section className="result">
-            <h3>When parking and occupancy line up</h3>
-            <p className="sub">Usage points per 10 points of occupancy, with occupancy measured before, at and after the capture. Filled dots: p &lt; 0.1.</p>
+            <h3>Does timing matter?</h3>
+            <p className="sub">Estimated change in relative parking activity for 10 percentage points more occupied space, measured before or after the photo. Whiskers show 95% intervals; filled dots have p &lt; 0.1.</p>
             <OffsetChart offsets={r.occLead.offsets} />
           </section>
         )}
 
         {r.occGroups?.groups && (
           <section className="result">
-            <h3>Where it holds: by {r.occGroups.by.replace("_", " ")}</h3>
+            <h3>Comparison by {r.occGroups.by.replace("_", " ")}</h3>
             <table className="groups">
               <tbody>
                 {r.occGroups.groups.filter((x: any) => x.usage_pts_per_10pt_occupancy != null).map((x: any) => (
                   <tr key={x.group}>
                     <td>{x.group}</td>
-                    <td className="num">{x.usage_pts_per_10pt_occupancy > 0 ? "+" : ""}{x.usage_pts_per_10pt_occupancy}{x.p_value >= 0.1 ? " (n.s.)" : ""}</td>
+                    <td className="num">{x.usage_pts_per_10pt_occupancy > 0 ? "+" : ""}{activityMultiple(x.usage_pts_per_10pt_occupancy)}{x.p_value >= 0.1 ? " (n.s.)" : ""}</td>
                     <td className="num">{x.n_buildings} bldgs</td>
                   </tr>
                 ))}
@@ -107,14 +127,14 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
             <p className="sub">{sliceLabel(bins.filters)}. {bins.n.toLocaleString()} lease expiries, 2019-2026. Click a bar for example buildings.</p>
             {e && (
               <p style={{ margin: "0 0 0.5rem" }}>
-                <span className="headline-num">{pct(e.emptiest)}</span> of tenants in the emptiest lots renewed,
-                against <strong>{pct(e.busiest)}</strong> in the busiest.
+                <span className="headline-num">{pct(e.emptiest)}</span> kept or expanded their space in the lowest-activity group,
+                against <strong>{pct(e.busiest)}</strong> in the highest-activity group.
               </p>
             )}
             <BinsChart bins={bins.bins} onPick={(b) => onPickBin(b, bins.filters ?? {})} />
             {reg?.interpretation && (
               <p className="sub" style={{ marginTop: "0.5rem" }}>
-                {reg.interpretation} n={reg.n.toLocaleString()}, p={reg.p_value_usage < 0.001 ? "<0.001" : reg.p_value_usage.toFixed(3)}.
+                {reg.interpretation.replace("Each 10-point drop in parking usage", "Each 0.1x decrease in relative parking activity")} n={reg.n.toLocaleString()}, p={reg.p_value_usage < 0.001 ? "<0.001" : reg.p_value_usage.toFixed(3)}.
               </p>
             )}
           </section>
@@ -132,7 +152,7 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
                   <span className="outcome" data-o={x.outcome}>{x.outcome.replace("_", " ")}</span>
                   <span className="meta">
                     {x.name}, {x.submarket}. {Math.round(x.lease_share * 100)}% of the building, expired {x.expiry}.
-                    Usage before expiry {x.usage_before_expiry}.
+                    Relative activity before expiry: {activityMultiple(x.usage_before_expiry)}.
                   </span>
                 </button>
               ))}
@@ -150,7 +170,7 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
 
         {r.groups?.map((g, gi) => (
           <section className="result" key={gi}>
-            <h3>Where it holds: by {g.by.replace("_", " ")}</h3>
+            <h3>Comparison by {g.by.replace("_", " ")}</h3>
             <p className="sub">Odds of renewal per 10-point usage drop. Lower means a stronger link.</p>
             <table className="groups">
               <tbody>
@@ -181,7 +201,7 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
                   <tr><td>Without 2020-21 expiries</td><td className="num">OR {r.validate.covid.without_2020_2021.odds_ratio_per_10pt_drop}</td></tr>
                 )}
                 {r.validate.detector_noise_15pct?.odds_ratio_per_10pt_drop && (
-                  <tr><td>Car counts with ±15% noise</td><td className="num">OR {r.validate.detector_noise_15pct.odds_ratio_per_10pt_drop}</td></tr>
+                  <tr><td>Car counts with +/-15% noise</td><td className="num">OR {r.validate.detector_noise_15pct.odds_ratio_per_10pt_drop}</td></tr>
                 )}
               </tbody>
             </table>
@@ -195,7 +215,7 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding }: {
               <button type="button" aria-pressed={metric === "usage_index"} onClick={() => setMetric("usage_index")}>Parking usage</button>
               <button type="button" aria-pressed={metric === "renewal_rate"} onClick={() => setMetric("renewal_rate")}>Renewal rate</button>
             </div>
-            <p className="sub">{metric === "usage_index" ? "Average lot fill as % of pre-COVID, weighted by building size. Shaded: 2020-21." : "Share of expiring tenants that kept all their space, per half-year."}</p>
+            <p className="sub">{metric === "usage_index" ? "Parking activity as a multiple of its pre-COVID reference, weighted by building size. Shaded: 2020-21." : "Share of expiring tenants that kept all their space, per half-year."}</p>
             <RegionalChart series={r.regional.series} metric={metric} />
           </section>
         )}
