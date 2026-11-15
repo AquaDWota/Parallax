@@ -122,7 +122,7 @@ pip install -r backend/requirements.txt          # adds ultralytics; first run d
 cd backend
 python -m scripts.batch_yolo_counts --limit 50   # resumable; --building ID, --workers 3, --all-pairs
 python -m scripts.compare_detectors              # r, median ratio, 20 biggest disagreements -> vexcel_output/compare/
-python -m scripts.compare_detectors --images 20  # lot + sam3 (cyan) + YOLO (magenta) boxes on the full image
+python -m scripts.compare_detectors --images P239891 --capture n29w95-us-tx-houston-2025  # lot + sam3 (cyan) + YOLO (magenta)
 PARALLAX_CAR_COUNTS=car_counts_yolo.csv python -m scripts.build   # run the whole pipeline on YOLO counts
 ```
 
