@@ -7,8 +7,8 @@ be compared against a hand count and the usage index doesn't rest on one closed 
 Settings (.env):
     PARALLAX_YOLO_WEIGHTS  weights file or Ultralytics model name   (default yolo11s-obb.pt)
     PARALLAX_YOLO_CLASSES  comma-separated class names to count     (default small vehicle,large vehicle)
-    PARALLAX_YOLO_CONF     confidence threshold                     (default 0.25)
-    PARALLAX_YOLO_GSD_M    ground resolution tiles are resampled to (default 0.15 m/pixel)
+    PARALLAX_YOLO_CONF     confidence threshold                     (default 0.10)
+    PARALLAX_YOLO_GSD_M    ground resolution tiles are resampled to (default 0.10 m/pixel)
     PARALLAX_YOLO_DEVICE   cpu | mps | cuda; empty = mps if available, else cpu
 
 Ultralytics is AGPL-3.0: fine for a private hackathon repo; check the licence before a public or
@@ -26,8 +26,8 @@ from shapely.geometry import Point, Polygon
 
 WEIGHTS = os.environ.get("PARALLAX_YOLO_WEIGHTS", "yolo11s-obb.pt")
 CLASSES = tuple(c.strip() for c in os.environ.get("PARALLAX_YOLO_CLASSES", "small vehicle,large vehicle").split(",") if c.strip())
-CONF = float(os.environ.get("PARALLAX_YOLO_CONF", "0.25"))
-GSD_M = float(os.environ.get("PARALLAX_YOLO_GSD_M", "0.15"))
+CONF = float(os.environ.get("PARALLAX_YOLO_CONF", "0.10"))
+GSD_M = float(os.environ.get("PARALLAX_YOLO_GSD_M", "0.10"))
 DEVICE = os.environ.get("PARALLAX_YOLO_DEVICE", "")
 DEDUPE_M = 1.5
 

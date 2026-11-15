@@ -15,7 +15,7 @@ tiles and a re-run makes no new API calls - resample to PARALLAX_YOLO_GSD_M, det
 keep cars inside the lot, drop duplicates on tile edges.
 
 Writes data/real/car_counts_yolo.csv: building_id, capture_id, cars, quality_flag, mean_conf, detector,
-model_version. Resumable: pairs already in the output are skipped.
+model_version. Resumable: pairs already counted with the same model_version are skipped; later rows win.
 """
 from __future__ import annotations
 
@@ -137,12 +137,16 @@ def run(real_dir: Path, cache_dir: Path, client, detector, buildings: list[str] 
         if r["capture_id"] not in pairs[r["building_id"]]:
             pairs[r["building_id"]].append(r["capture_id"])
     out = real_dir / out_name
-    done = {(r["building_id"], r["capture_id"]) for r in _read(out)}
+    version = detector.model_version
+    # a pair counts as done only if it was counted with these exact settings and didn't error;
+    # change the model, confidence or resolution and the batch recounts from the cached tiles (no API calls)
+    done = {(r["building_id"], r["capture_id"]) for r in _read(out)
+            if r.get("model_version") == version and r["quality_flag"] != "error"}
     bids = [b for b in pairs if any((b, c) not in done for c in pairs[b])]
     if limit:
         bids = bids[:limit]
-    log(f"{len(bids)} buildings to count with YOLO ({len(done)} building-captures already done), {workers} workers")
-    version = detector.model_version
+    log(f"{len(bids)} buildings to count with YOLO ({len(done)} building-captures already done with {version}), "
+        f"{workers} workers")
 
     def one(bid: str) -> tuple[str, int, int]:
         lot = swkt.loads(vb[bid]["lot_wkt"])

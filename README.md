@@ -115,7 +115,7 @@ come from CoStar `expirationReason` (7/12 renewal, 8 shed space, 1/4/10/... move
 
 ## Open-source car detector (branch `yolo-detector`)
 
-A second car count from a pretrained Ultralytics YOLO OBB model (DOTA classes `small vehicle`, `large vehicle`), run on plain Vexcel ortho tiles resampled to 15 cm/px. It's there to check the Vexcel sam3 counts. Settings live in `.env` (`PARALLAX_YOLO_*`).
+A second car count from a pretrained Ultralytics YOLO OBB model (DOTA classes `small vehicle`, `large vehicle`), run on plain Vexcel ortho tiles resampled to 10 cm/px with confidence 0.10 (tuned on the worst disagreements: at 15 cm / 0.25 it missed dark and shaded cars). It's there to check the Vexcel sam3 counts. Settings live in `.env` (`PARALLAX_YOLO_*`).
 
 ```bash
 pip install -r backend/requirements.txt          # adds ultralytics; first run downloads yolo11s-obb.pt

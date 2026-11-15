@@ -48,7 +48,7 @@ class FakeDetector(YoloDetector):
 
     @property
     def model_version(self):
-        return "fake"
+        return f"fake;conf={self.conf}"
 
 
 def test_detect_resamples_to_gsd_and_maps_to_lonlat():
@@ -122,6 +122,12 @@ def test_batch_end_to_end_resume_and_cache(tmp_path):
     run(real, cache, client, det, workers=1, log=lambda *_: None)    # resume: nothing left to do
     assert client.calls == calls
     assert len(list(csv.DictReader(open(real / "car_counts_yolo.csv")))) == 2
+    # new settings -> everything is recounted, from cached tiles only
+    det2 = FakeDetector(conf=0.05)
+    run(real, cache, client, det2, workers=1, log=lambda *_: None)
+    assert client.calls == calls
+    rows = list(csv.DictReader(open(real / "car_counts_yolo.csv")))
+    assert len(rows) == 4 and rows[-1]["model_version"] == det2.model_version
     # tiles are cached: counting the same pair again makes no API calls
     count_pair(client, det, cache, lot, "c2022", 60)
     count_pair(client, det, cache, lot, "empty", 60)
