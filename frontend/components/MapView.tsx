@@ -9,6 +9,16 @@ const CENTERS: Record<string, [number, number, number]> = {
   "Los Angeles": [34.03, -118.3, 10],
 };
 
+/** Fly to the selected building (e.g. from an evidence card), once its marker is on the map. */
+function FlyTo({ selected, buildings }: { selected: string | null; buildings: Building[] }) {
+  const map = useMap();
+  const b = selected ? buildings.find((x) => x.id === selected) : undefined;
+  useEffect(() => {
+    if (b) map.flyTo([b.lat, b.lon], Math.max(map.getZoom(), 15), { duration: 1.2 });
+  }, [b?.id, map]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
 function Recenter({ city }: { city: string }) {
   const map = useMap();
   useEffect(() => {
@@ -36,6 +46,7 @@ export default function MapView({ city, buildings, selected, onSelect, watch }: 
         maxZoom={19}
       />
       <Recenter city={city} />
+      <FlyTo selected={selected} buildings={buildings} />
       {buildings.map((b) => {
         const garage = b.parking !== "surface";
         const sel = b.id === selected;

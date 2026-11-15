@@ -125,9 +125,13 @@ def compare_groups(by: str = "city", city: Optional[str] = None, property_type: 
 
 
 def run_sql(query: str) -> str:
-    """Read-only SQL (DuckDB) over tables: buildings, captures, car_counts, leases, usage.
-    usage has building_id, capture_id, capture_date, index_smooth (peer-relative, % of 2018-19),
-    abs_index_smooth, status. Max 200 rows returned."""
+    """Read-only SQL (DuckDB). Last resort - prefer a dedicated tool. Tables and main columns:
+    buildings(building_id, name, city, submarket, property_type, building_class, sqft, lat, lon, parking_type)
+    usage(building_id, capture_id, capture_date, cars, index, index_smooth [% of own 2016-19 level],
+          abs_index_smooth, status ['ok' or why dropped])
+    leases(lease_id, building_id, tenant, tenant_industry, sqft, start_date, expiry_date, outcome, rent_psf)
+    captures(capture_id, city, capture_date). Occupancy is not a column: use shadow_vacancy_screen or the
+    occupancy_* tools. Max 200 rows returned."""
     try:
         df = _run_sql(query)
     except Exception as e:

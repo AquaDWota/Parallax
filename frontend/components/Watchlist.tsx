@@ -11,7 +11,7 @@ const fmt = (v: number | null | undefined, d = 0) => (v == null ? "n/a" : v.toFi
 const signed = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(0)}`;
 
 /** Lender risk screen: leased on paper vs used in the lot. */
-export default function Watchlist({ data, onPick }: { data: any; onPick: (id: string) => void }) {
+export default function Watchlist({ data, onPick, shown }: { data: any; onPick: (id: string) => void; shown?: Set<string> }) {
   const [showAll, setShowAll] = useState(false);
   const [showSetAside, setShowSetAside] = useState(false);
   if (!data?.rows) return <p className="sub">Loading the screen.</p>;
@@ -58,6 +58,7 @@ export default function Watchlist({ data, onPick }: { data: any; onPick: (id: st
                 title={r.expiring_tenants || undefined}>
                 <td>
                   <span className="bname">{r.name}</span>
+                  {shown?.has(r.building_id) && <span className="shownTag">shown in answer</span>}
                   <span className="bmeta">{r.city === "Los Angeles" ? "LA" : r.city}, {r.property_type}{r.building_class && r.building_class !== "U" ? ` ${r.building_class}` : ""}{r.data_check ? ", check records" : ""}</span>
                 </td>
                 <td className="num">{fmt(r.leased_now)}%<span className="bmeta">{signed(r.leased_change)} pts</span></td>

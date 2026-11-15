@@ -88,6 +88,8 @@ def building(building_id: str):
     rec["leases"] = [dict(tenant=r.tenant, industry=r.tenant_industry, sqft=int(r.sqft),
                           start=str(r.start_date.date()), expiry=str(r.expiry_date.date()), outcome=r.outcome)
                      for r in l.itertuples()]
+    from parallax.tours import tour_url
+    rec["tour_url"] = tour_url(building_id) if config.REAL else None
     return rec
 
 

@@ -18,6 +18,7 @@ import asyncio
 import json
 import os
 import re
+import time
 from typing import AsyncIterator
 
 from . import config
@@ -39,7 +40,10 @@ You study how parking-lot usage (car counts from Vexcel aerial imagery, about on
 Buildings with structured/underground parking can't be measured from above and are excluded.
 
 How to work:
-1. Write a short plan with write_todos.
+0. Be economical: every step costs an API call against a small quota. For "which buildings" questions call
+   shadow_vacancy_screen once - it already has CoStar occupancy then and now. Use run_sql only when no tool
+   fits, and only with the columns listed in its description (don't explore the schema).
+1. Write a short plan with write_todos (skip it for a one-tool question).
 2. For a full study, delegate: lease-event-builder (build the table, report exclusions),
    statistician (usage bins, regression, lead time, validation), imagery-analyst (regional series,
    data quality, example buildings), market-analyst (submarket context). For a quick follow-up on a
@@ -47,7 +51,9 @@ How to work:
 3. Choose the next cut based on what results show (city, type, class, tenant industry, tenant size).
    Tenant size matters: a tenant leasing <10% of a building barely moves its lot.
 4. Check yourself: say what was excluded and why. Never overstate: this is correlation, not cause.
-5. Finish with a research note in markdown: the headline (odds ratio per 10-point drop with CI, renewal
+5. The app shows evidence cards (lot photos then/now, CoStar vs lot) for the top 3 buildings you name, so
+   don't repeat them: for building lists give 2-3 sentences and at most a 5-row table.
+6. Otherwise finish with a research note in markdown: the headline (odds ratio per 10-point drop with CI, renewal
    rate in the emptiest vs busiest bin), lead time, where it holds, validation, caveats. Under 250 words.
 
 Tool filters: city ("Houston"/"Los Angeles"), property_type (office/retail/industrial), building_class
@@ -80,15 +86,38 @@ SUBAGENTS = [
 
 def _build_deep_agent():
     from deepagents import create_deep_agent
-    return create_deep_agent(model=config.MODEL, tools=ALL_TOOLS, system_prompt=PLANNER_PROMPT,
+    from langchain.chat_models import init_chat_model
+    # no retries: a failed call (rate limit, quota) falls straight back to the scripted planner
+    # instead of being repeated and spending more of the quota
+    model = init_chat_model(config.MODEL, max_retries=0, timeout=STEP_TIMEOUT_S)
+    return create_deep_agent(model=model, tools=ALL_TOOLS, system_prompt=PLANNER_PROMPT,
                              subagents=SUBAGENTS, name="parallax-planner")
 
 
+# Cool-down: after an LLM failure, stop calling it for a while (daily quota used up: until restart),
+# so the next questions don't keep hitting a dead or rate-limited key.
+_LLM_OFF_UNTIL = 0.0
+_LLM_OFF_REASON = ""
+LLM_COOLDOWN_S = float(os.environ.get("PARALLAX_LLM_COOLDOWN", str(15 * 60)))
+
+
+def _trip_breaker(msg: str) -> None:
+    global _LLM_OFF_UNTIL, _LLM_OFF_REASON
+    if "PerDay" in msg:
+        _LLM_OFF_UNTIL, _LLM_OFF_REASON = float("inf"), "daily quota used up"
+    else:
+        _LLM_OFF_UNTIL = time.time() + LLM_COOLDOWN_S
+        _LLM_OFF_REASON = "rate limit" if ("429" in msg or "RESOURCE_EXHAUSTED" in msg) else "last call failed"
+
+
 def use_llm() -> bool:
-    return os.environ.get("PARALLAX_AGENT", "auto") != "scripted" and config.llm_available()
+    return (os.environ.get("PARALLAX_AGENT", "auto") != "scripted" and config.llm_available()
+            and time.time() >= _LLM_OFF_UNTIL)
 
 
 async def ask(question: str, history: list[dict] | None = None) -> AsyncIterator[dict]:
+    if _LLM_OFF_REASON and not use_llm() and os.environ.get("PARALLAX_AGENT", "auto") != "scripted":
+        yield {"type": "note", "text": f"AI planner paused ({_LLM_OFF_REASON}); using the scripted planner."}
     gen = _ask_llm(question, history) if use_llm() else _ask_scripted(question)
     async for e in gen:
         yield e
@@ -151,12 +180,12 @@ async def _llm_events(agent_graph, msgs):
 
 
 async def _ask_llm(question: str, history: list[dict] | None) -> AsyncIterator[dict]:
-    yield {"type": "note", "text": f"Planning with {config.MODEL}..."}
     _log(f"question: {question!r} via {config.MODEL}")
     try:
         agent_graph = _build_deep_agent()
     except Exception as e:
         _log(f"could not build the LLM agent: {e}")
+        _trip_breaker(str(e))
         yield {"type": "note", "text": f"LLM agent unavailable ({str(e)[:160]}); using the scripted planner."}
         async for ev in _ask_scripted(question):
             yield ev
@@ -183,6 +212,7 @@ async def _ask_llm(question: str, history: list[dict] | None) -> AsyncIterator[d
         if isinstance(e, asyncio.TimeoutError):
             msg = f"no step for {STEP_TIMEOUT_S:.0f}s" if not str(e) else str(e)
         _log(f"LLM planner failed: {msg}")
+        _trip_breaker(str(e) or msg)
         # never let a model problem break the demo: say so, then run the same tools with the scripted planner
         yield {"type": "note", "text": f"The LLM planner failed ({msg}). Running the scripted planner instead."}
         async for ev in _ask_scripted(question):
@@ -224,7 +254,8 @@ def parse_filters(q: str) -> dict:
 
 def _intent(q: str) -> str:
     ql = q.lower()
-    if re.search(r"watch ?list|risk|lender|which buildings|shadow vacan|leased but|screen", ql):
+    if re.search(r"watch ?list|risk|lender|which buildings|shadow vacan|leased but|screen", ql) or re.search(
+            r"(which|top|list)\b.*\bbuildings?\b.*(empt|drop|declin|fell|lost)|empt\w* the most|most empt", ql):
         return "screen"
     if re.search(r"renew|lease (expir|outcome)|tenant (leav|stay)", ql):
         return "full"
