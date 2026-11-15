@@ -32,10 +32,11 @@ function sliceLabel(f: Record<string, any> | undefined) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export default function ResultsPanel({ r, onPickBin, onPickBuilding, view, setView, screen }: {
+export default function ResultsPanel({ r, onPickBin, onPickBuilding, view, setView, screen, shownInAnswer }: {
   r: Results;
   onPickBin: (b: Bin, filters: Record<string, any>) => void;
   onPickBuilding: (id: string) => void;
+  shownInAnswer?: Set<string>;
   view: "study" | "watchlist";
   setView: (v: "study" | "watchlist") => void;
   screen: any;
@@ -55,7 +56,7 @@ export default function ResultsPanel({ r, onPickBin, onPickBuilding, view, setVi
         </div>
       </div>
       <div className="col-body">
-        {view === "watchlist" ? <Watchlist data={screen} onPick={onPickBuilding} /> : <>
+        {view === "watchlist" ? <Watchlist data={screen} onPick={onPickBuilding} shown={shownInAnswer} /> : <>
         {r.occLink?.bins?.length > 0 && (
           <section className="result">
             <h3>Parking tracks occupancy</h3>
