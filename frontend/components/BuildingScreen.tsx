@@ -22,7 +22,7 @@ export default function BuildingScreen({ data, onPick, shown, focus }: { data: a
   const keep = (r: Row) => (view === "risk" ? r.watch : view === "opportunity" ? r.opportunity : true);
   let rows: Row[] = data.rows.filter((r: Row) => (showSetAside ? true : !r.data_check)).filter(keep);
   if (view === "opportunity") rows = [...rows].sort((a, b) => b.opportunity_score - a.opportunity_score);
-  const scoreLabel = view === "opportunity" ? "Opportunity" : view === "risk" ? "Risk" : "Risk / opp.";
+  const scoreLabel = view === "opportunity" ? "Investment score" : view === "risk" ? "Risk score" : "Score";
   const score = (r: Row) => (view === "opportunity" ? r.opportunity_score : view === "risk" ? r.gap : r.opportunity && !r.watch ? r.opportunity_score : r.gap);
 
   return (
