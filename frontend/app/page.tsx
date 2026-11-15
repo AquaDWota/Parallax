@@ -3,12 +3,14 @@ import dynamic from "next/dynamic";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AgentPanel, { type Turn } from "@/components/AgentPanel";
 import { evidenceFrom } from "@/components/EvidenceCards";
+import BrandMark from "@/components/BrandMark";
 import BuildingDrawer from "@/components/BuildingDrawer";
+import ParkingLegend from "@/components/ParkingLegend";
 import ResultsPanel, { type Results } from "@/components/ResultsPanel";
 import SettingsMenu from "@/components/SettingsMenu";
 import Splitter from "@/components/Splitter";
 import Stalls from "@/components/Stalls";
-import { api, askStream, usageColor, type AgentEvent, type Building, type Meta } from "@/lib/api";
+import { api, askStream, type AgentEvent, type Building, type Meta } from "@/lib/api";
 import { DEFAULTS, DEFAULT_SIZES, MIN_SHARE, applySettings, loadSettings, loadSizes, resolveTheme, saveSettings, saveSizes, type PanelSizes, type Settings } from "@/lib/settings";
 
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
@@ -168,19 +170,22 @@ export default function Page() {
               ))}
             </div>
           </div>
+          {/* the selected year, big, above the map (from Kelly's lease-validation branch) */}
+          <div className="map-year-bar" role="status" aria-label="Selected year" aria-live="polite" aria-atomic="true">
+            <strong>{period ? period.slice(0, 4) : "Loading..."}</strong>
+          </div>
           <div className="mapwrap">
             {loadError ? <p style={{ padding: "1rem 1.25rem" }}>{loadError}</p> :
               <MapView city={city} buildings={buildings} selected={selected} onSelect={setSelected} watch={watchIds} opportunity={oppIds} dark={dark} />}
-            <div className="legend" aria-hidden>
-              Lot fill, % of its pre-COVID level
-              <div className="ramp">{[50, 65, 80, 92, 100, 108, 120, 135, 150].map((v) => <span key={v} style={{ background: usageColor(v) }} />)}</div>
-              <div className="ends"><span>50</span><span>100</span><span>150</span></div>
-              <div style={{ marginTop: 4, color: "var(--asphalt-2)" }}>Hollow: garage, not measurable</div>
-              {watchIds.size > 0 && <div style={{ marginTop: 2, color: "var(--left)" }}>Red ring: risk flag</div>}
-              {oppIds.size > 0 && <div style={{ marginTop: 2, color: "var(--up)" }}>Green ring: investment prospect</div>}
-            </div>
+            {(watchIds.size > 0 || oppIds.size > 0) && <div className="map-ring-note">
+              {watchIds.size > 0 && <span style={{ color: "var(--left)" }}>Red ring: risk flag</span>}
+              {oppIds.size > 0 && <span style={{ color: "var(--up)" }}>Green ring: investment prospect</span>}
+              <span>Hollow: garage, not measurable</span>
+            </div>}
             {selected && <BuildingDrawer id={selected} onClose={() => setSelected(null)} />}
           </div>
+          {/* full-width parking activity scale under the map; hover a colour for its meaning */}
+          <div className="map-activity-info"><ParkingLegend baselineMethod="mean" /></div>
           {meta && <Stalls periods={meta.periods} index={pi} onChange={setPi} summary={summary} />}
         </section>
     );
@@ -201,7 +206,7 @@ export default function Page() {
   return (
     <div className="shell">
       <header className="topbar">
-        <h1 className="wordmark">Parallax</h1>
+        <h1 className="wordmark"><span>Parallax</span><BrandMark /></h1>
         <p className="thesis">Parking lots as a live occupancy gauge: Vexcel aerial car counts against CoStar tenancies, Houston and LA, 2016 to 2026.</p>
         <SettingsMenu settings={settings} onChange={updateSettings} />
         {meta && <span className="mode">{meta.data_mode === "synthetic" ? "Synthetic data" : "Real Vexcel + CoStar data"}, {meta.agent_mode === "llm" ? "LLM planner" : "scripted planner"}</span>}
