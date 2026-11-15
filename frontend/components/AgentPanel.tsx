@@ -1,6 +1,7 @@
 "use client";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { AgentEvent } from "@/lib/api";
+import EvidenceCards, { evidenceFrom, watchCountFrom } from "./EvidenceCards";
 
 const SUGGESTIONS = [
   "Does parking track building occupancy?",
@@ -33,23 +34,59 @@ const TOOL_LABEL: Record<string, string> = {
   occupancy_by_group: "split the link by group",
 };
 
+/** Plain text from LaTeX the model sometimes writes: $p<0.001$ -> p<0.001, \times -> x. */
+function unlatex(s: string) {
+  return s.replace(/\$([^$]+)\$/g, "$1").replace(/\\(times|cdot)/g, "x").replace(/\\%/g, "%").replace(/\\(text|mathrm)\{([^}]*)\}/g, "$2");
+}
+
 function inline(s: string): ReactNode[] {
-  return s.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <Fragment key={i}>{part.replace(/^\*|\*$/g, "")}</Fragment>,
+  return unlatex(s).split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") && part.length > 4
+      ? <strong key={i}>{part.slice(2, -2)}</strong>
+      : <Fragment key={i}>{part.replace(/(^|\s)\*([^*\s][^*]*)\*(?=\s|$|[.,;:])/g, "$1$2")}</Fragment>,
   );
 }
 
+const cells = (row: string) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+
+/** Minimal markdown for the agent's note: headings, paragraphs, bullet/numbered lists, tables. */
 function Note({ md }: { md: string }) {
-  const paras = md.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  return (
-    <div className="final">
-      {paras.map((p, i) =>
-        p.startsWith("#") ? <h3 key={i}>{p.replace(/^#+\s*/, "")}</h3> :
-        p.startsWith("*") && !p.startsWith("**") ? <p key={i}><em>{p.replace(/^\*|\*$/g, "")}</em></p> :
-        <p key={i}>{inline(p)}</p>,
-      )}
-    </div>
-  );
+  const lines = md.replace(/\r/g, "").split("\n");
+  const out: ReactNode[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (!line || /^(-{3,}|\*{3,})$/.test(line)) { i++; continue; }
+    if (line.startsWith("#")) { out.push(<h3 key={i}>{inline(line.replace(/^#+\s*/, ""))}</h3>); i++; continue; }
+    if (line.startsWith("|")) {
+      const rows: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) rows.push(lines[i++].trim());
+      const body = rows.filter((r) => !/^\|?[\s:|-]+\|?$/.test(r)); // drop the |---|---| line
+      const [head, ...rest] = body;
+      out.push(
+        <div className="tableWrap" key={i}>
+          <table>
+            {head && <thead><tr>{cells(head).map((c, k) => <th key={k}>{inline(c)}</th>)}</tr></thead>}
+            <tbody>{rest.map((r, ri) => <tr key={ri}>{cells(r).map((c, k) => <td key={k}>{inline(c)}</td>)}</tr>)}</tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
+    if (/^([-*•]|\d+[.)])\s+/.test(line)) {
+      const ordered = /^\d/.test(line);
+      const items: string[] = [];
+      while (i < lines.length && /^\s*([-*•]|\d+[.)])\s+/.test(lines[i])) items.push(lines[i++].trim().replace(/^([-*•]|\d+[.)])\s+/, ""));
+      const li = items.map((t, k) => <li key={k}>{inline(t)}</li>);
+      out.push(ordered ? <ol key={i}>{li}</ol> : <ul key={i}>{li}</ul>);
+      continue;
+    }
+    const para: string[] = [];
+    while (i < lines.length && lines[i].trim() && !/^(#|\||([-*•]|\d+[.)])\s+)/.test(lines[i].trim())) para.push(lines[i++].trim());
+    if (!para.length) { i++; continue; }
+    out.push(<p key={i}>{inline(para.join(" "))}</p>);
+  }
+  return <div className="final">{out}</div>;
 }
 
 function describeArgs(args: Record<string, unknown>) {
@@ -62,10 +99,13 @@ function describeArgs(args: Record<string, unknown>) {
 
 export type Turn = { question: string; events: AgentEvent[] };
 
-export default function AgentPanel({ turns, running, onAsk }: {
+export default function AgentPanel({ turns, running, onAsk, onPickBuilding, onSeeWatchlist, screenRows }: {
   turns: Turn[];
   running: boolean;
   onAsk: (q: string) => void;
+  onPickBuilding: (id: string) => void;
+  onSeeWatchlist?: () => void;
+  screenRows?: any[];
 }) {
   const [q, setQ] = useState("");
   const end = useRef<HTMLDivElement>(null);
@@ -104,7 +144,14 @@ export default function AgentPanel({ turns, running, onAsk }: {
                   return <div key={i} className="step"><b>{e.agent.replace(/-/g, " ")}</b> {TOOL_LABEL[e.tool] ?? e.tool}{describeArgs(e.args)}</div>;
                 if (e.type === "note") return <p key={i} className="note">{e.text}</p>;
                 if (e.type === "error") return <p key={i} className="note err">{e.text}</p>;
-                if (e.type === "final") return <Note key={i} md={e.text} />;
+                if (e.type === "final")
+                  return (
+                    <Fragment key={i}>
+                      <Note md={e.text} />
+                      <EvidenceCards items={evidenceFrom(t.events, screenRows)} onPick={onPickBuilding}
+                        nWatch={watchCountFrom(t.events)} onSeeAll={onSeeWatchlist} />
+                    </Fragment>
+                  );
                 return null;
               })}
             </Fragment>

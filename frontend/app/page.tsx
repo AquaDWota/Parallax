@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AgentPanel, { type Turn } from "@/components/AgentPanel";
+import { evidenceFrom } from "@/components/EvidenceCards";
 import BuildingDrawer from "@/components/BuildingDrawer";
 import ResultsPanel, { type Results } from "@/components/ResultsPanel";
 import Stalls from "@/components/Stalls";
@@ -21,6 +22,8 @@ export default function Page() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<"study" | "watchlist">("study");
   const [screen, setScreen] = useState<any>(null);
+  // buildings the latest answer showed as evidence cards: marked in the Watchlist table
+  const shownInAnswer = useMemo(() => new Set<string>(turns.length ? evidenceFrom(turns[turns.length - 1].events, screen?.rows).map((e) => e.building_id) : []), [turns, screen]);
   const watchIds = useMemo(() => new Set<string>((screen?.rows ?? []).filter((r: any) => r.watch).map((r: any) => r.building_id)), [screen]);
 
   useEffect(() => {
@@ -33,7 +36,10 @@ export default function Page() {
       setPi(Math.max(0, m.periods.indexOf(pre[pre.length - 1] ?? m.periods[0])));
     })
       .catch(() => setLoadError("Can't reach the API on port 8000. Start it with: cd backend && uvicorn api.main:app --port 8000"));
-    api.screen().then(setScreen).catch(() => {});
+    // the backend may still be starting (it rebuilds its database when the data changed): keep retrying
+    let tries = 0;
+    const loadScreen = () => api.screen().then(setScreen).catch(() => { if (++tries < 40) setTimeout(loadScreen, 3000); });
+    loadScreen();
     api.overview().then((o) => setResults({
       occLink: o.occ_link?.bins ? o.occ_link : undefined, occLead: o.occ_lead, occDrop: o.occ_drop,
       bins: o.bins, regression: o.regression, regional: o.regional,
@@ -140,11 +146,13 @@ export default function Page() {
         </section>
 
         <section className="col" aria-label="Agent">
-          <AgentPanel turns={turns} running={running} onAsk={ask} />
+          <AgentPanel turns={turns} running={running} onAsk={ask} onPickBuilding={pickBuilding}
+            onSeeWatchlist={() => setView("watchlist")} screenRows={screen?.rows} />
         </section>
 
         <section className="col" aria-label="Results">
-          <ResultsPanel r={results} onPickBin={pickBin} onPickBuilding={pickBuilding} view={view} setView={setView} screen={screen} />
+          <ResultsPanel r={results} onPickBin={pickBin} onPickBuilding={pickBuilding} view={view} setView={setView} screen={screen}
+            shownInAnswer={shownInAnswer} />
         </section>
       </main>
     </div>

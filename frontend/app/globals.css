@@ -243,3 +243,41 @@ button, input { font: inherit; color: inherit; }
 .viewtabs { display: inline-flex; gap: 0.25rem; }
 .viewtabs button { border: 1px solid var(--rule); background: var(--panel); border-radius: 2px; padding: 0.2rem 0.7rem; cursor: pointer; font-size: var(--s-1); }
 .viewtabs button[aria-pressed="true"] { background: var(--asphalt); color: #fff; border-color: var(--asphalt); }
+
+/* ---------- evidence cards (agent answer: records vs. the lot) ---------- */
+.evidenceList { margin-top: 0.75rem; display: grid; gap: 0.6rem; }
+.evidenceList .kicker { margin: 0; font-family: var(--display); font-size: var(--s-1); letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--asphalt-2); }
+.evidence { background: #fff; border: 1px solid var(--rule); border-radius: 3px; padding: 0.7rem 0.8rem; }
+.evidence header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.6rem; margin-bottom: 0.5rem; }
+.evidence h4 { margin: 0; font-family: var(--display); font-weight: 600; font-size: var(--s1); }
+.evidence header .sub { color: var(--asphalt-2); font-size: var(--s-1); }
+.evidence .flag { font-size: var(--s-1); font-weight: 600; color: var(--left); }
+.evidence .photos { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.4rem; }
+.evidence figure { margin: 0; min-width: 0; }
+.evidence img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; border-radius: 2px; background: var(--asphalt); }
+.evidence figcaption { font-size: var(--s-1); color: var(--asphalt-2); margin-top: 0.2rem; }
+.evidence .arrow { color: var(--asphalt-2); font-size: var(--s1); }
+.evidence .nophoto { grid-column: 1 / -1; margin: 0; color: var(--asphalt-2); font-size: var(--s-1); }
+.evidence .says { margin: 0.55rem 0 0; display: grid; gap: 0.15rem; font-size: var(--s0); }
+.evidence .says div { display: flex; justify-content: space-between; gap: 0.75rem; }
+.evidence .says dt { color: var(--asphalt-2); }
+.evidence .says dd { margin: 0; text-align: right; }
+.evidence .says .warn dd b { color: var(--left); }
+.evidence .actions { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; align-items: center; margin-top: 0.6rem; font-size: var(--s-1); }
+.evidence .actions button { font: inherit; padding: 0.3rem 0.65rem; border: 1px solid var(--asphalt); background: var(--asphalt);
+  color: #fff; border-radius: 2px; cursor: pointer; }
+.evidence .actions button:hover { background: var(--asphalt-2); }
+.evidence .actions a { color: var(--slate); }
+
+.final ul, .final ol { margin: 0 0 0.55rem; padding-left: 1.2rem; max-width: 68ch; }
+.final li { margin: 0.15rem 0; }
+.final .tableWrap { overflow-x: auto; margin: 0 0 0.6rem; }
+.final table { border-collapse: collapse; font-size: var(--s-1); font-variant-numeric: tabular-nums; }
+.final th, .final td { text-align: left; padding: 0.25rem 0.6rem 0.25rem 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.final th { font-weight: 600; color: var(--asphalt-2); }
+
+.evidenceList .seeAll { justify-self: start; font: inherit; font-size: var(--s-1); padding: 0; border: 0; background: none;
+  color: var(--slate); text-decoration: underline; cursor: pointer; }
+.screen .shownTag { display: inline-block; margin-left: 0.4rem; padding: 0 0.35rem; font-size: 0.75rem; font-weight: 600;
+  color: var(--asphalt); background: var(--paint); border-radius: 2px; vertical-align: 1px; }
